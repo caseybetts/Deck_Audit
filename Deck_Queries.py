@@ -1,38 +1,22 @@
 # This file contains the queries used to interrogate the tasking deck and will return the results
 
-
-
-import pandas as pd
 import arcpy
+import pandas as pd
+# Set variables to current project and map
+current_project = arcpy.mp.ArcGISProject("current")
+current_map = current_project.activeMap
 
-# Get layer object
-layer = arcpy.GetParameterAsText(0) 
+# Search layers for the active orders
+for layer in current_map.listLayers():
+    if layer.isFeatureLayer:
+        if layer.name == 'PROD_Active_Orders_UFP':
+            active_orders_layer = layer
+            break
 
-# Get a list of field names
+# Read the geo database table into pandas dataframe
 fields = [f.name for f in arcpy.ListFields(layer)]
 
-# Read layer into dataframe
 with arcpy.da.SearchCursor(layer, fields) as cursor:
-    data = [[r[0] for r in cursor.fields] + list(cursor)]
-    df = pd.DataFrame(data[1:], columns=data[0])
+    df = pd.DataFrame(list(cursor), columns=fields)
 
-print(df.head())                     
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      
-
-
-
+print(df.head())         
