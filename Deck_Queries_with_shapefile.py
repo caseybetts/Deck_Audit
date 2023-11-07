@@ -7,7 +7,7 @@ import geopandas as gpd
 from pathlib import Path
 
 # Load .json containing sensitive parameters
-with open('Sensitive_Parameters.json', 'r') as input:
+with open('Local_only\Sensitive_Parameters.json', 'r') as input:
     parameters = json.load(input)
 
 # define parameter variables
@@ -15,14 +15,13 @@ excluded_customers = parameters["excluded customers"]
 display_columns = parameters["with_shapefile"]["columns to display"]
 columns_to_drop = parameters["with_shapefile"]["columns_to_drop"]
 
-print(excluded_customers)
-
-active_orders_path = Path("Orders\PROD_Active_Orders_UFP_pri690-800.dbf")
+# Path to the active orders UFP
+active_orders_path = Path("Local_only\PROD_Active_Orders_UFP_pri690-800.dbf")
 
 def create_dataframe(source_file_path):
     """ Reads the .pkl file into a pandas dataframe """ 
 
-    pickle_path = Path("Orders\orders_dataframe.pkl")
+    pickle_path = Path("Local_only\orders_dataframe.pkl")
 
     if pickle_path.is_file():
         df = pd.read_pickle(pickle_path)
