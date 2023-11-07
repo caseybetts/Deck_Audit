@@ -40,6 +40,7 @@ def clean_dataframe(dataframe):
 
     return new_df[new_df.tasking_pr > 690]
 
+
 def testing():
     df = pd.DataFrame(gpd.read_file(active_orders_path))
     columns_to_drop = [ 'classifica', 'data_acces', 'demand_typ', 'standing_t', 
@@ -54,9 +55,9 @@ def testing():
 def spec_at_high_pri(dataframe, priority):
     """ Identifies orders that are spec responsiveness level and above the given priority """
 
-    exluded_cust = excluded_customers["spec_at_high_pri"]
+    excluded_cust = excluded_customers["spec_at_high_pri"]
 
-    result = dataframe[(dataframe.responsive == 'None') & (dataframe.tasking_pr < priority) & (~dataframe.sap_custom.isin(exluded_cust))]
+    result = dataframe[(dataframe.responsive == 'None') & (dataframe.tasking_pr < priority) & (~dataframe.sap_custom.isin(excluded_cust))]
     
     print("\nSpec prioritized above ", priority, ":")
     print( result.loc[:, display_columns] )
@@ -65,9 +66,9 @@ def spec_at_high_pri(dataframe, priority):
 def select_at_high_pri(dataframe, priority):
     """ Identifies orders that are select responsiveness level and above the given priority """
 
-    exluded_cust = excluded_customers["select_at_high_pri"]
+    excluded_cust = excluded_customers["select_at_high_pri"]
 
-    result = dataframe[(dataframe.responsive == 'Select') & (dataframe.tasking_pr < priority) & (~dataframe.sap_custom.isin(exluded_cust))]
+    result = dataframe[(dataframe.responsive == 'Select') & (dataframe.tasking_pr < priority) & (~dataframe.sap_custom.isin(excluded_cust))]
     
     print("\nSelect prioritized above ", priority, ":")
     print( result.loc[:, display_columns] )
@@ -75,16 +76,22 @@ def select_at_high_pri(dataframe, priority):
 def selectplus_at_high_pri(dataframe, priority):
     """ Identifies orders that are selectplus responsiveness level and above the given priority """
 
-    exluded_cust = excluded_customers["selectplus_at_high_pri"]
+    excluded_cust = excluded_customers["selectplus_at_high_pri"]
 
-    result = dataframe[(dataframe.responsive == 'SelectPlus') & (dataframe.tasking_pr < priority) & (~dataframe.sap_custom.isin(exluded_cust))]
+    result = dataframe[(dataframe.responsive == 'SelectPlus') & (dataframe.tasking_pr < priority) & (~dataframe.sap_custom.isin(excluded_cust))]
     
     print("\nSelectPlus prioritized above ", priority, ":")
     print( result.loc[:, display_columns] )
 
+def selectplus_at_low_pri(dataframe, priority):
+    """dentifies orders that are selectplus responsiveness level and above the given priority"""
 
+    excluded_cust = excluded_customers["selectplus_at_low_pri"]
 
+    result = dataframe[(dataframe.responsive == 'SelectPlus') & (dataframe.tasking_pr > priority) & (~dataframe.sap_custom.isin(excluded_cust))]
 
+    print("\nSelectPlus prioritized below ", priority, ":")
+    print( result.loc[:, display_columns] )
 
 if __name__ == "__main__":
     orders = create_dataframe(active_orders_path)
