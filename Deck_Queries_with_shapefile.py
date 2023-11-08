@@ -40,20 +40,6 @@ def clean_dataframe(dataframe):
 
     return new_df[new_df.tasking_pr > 690]
 
-<<<<<<< HEAD
-=======
-
-def testing():
-    df = pd.DataFrame(gpd.read_file(active_orders_path))
-    columns_to_drop = [ 'classifica', 'data_acces', 'demand_typ', 'standing_t', 
-                        'purchase_1', 'country', 'lg01', 'lg02', 'imagebands', 'percent_co',
-                        'consider_f', 'consider_1', 'lg01_sched',
-                        'lg02_sched', 'scan_direc', 'line_rate', 'tdi_flag', 'tdi_offset',
-                        'geometry']
-    new_df = df.drop(labels=columns_to_drop, axis=1)
-    new_df = new_df[new_df.tasking_pr > 690]
-    print(new_df["tasking_pr"].min())
->>>>>>> c03cb1cf0d9635166692c0a697af7a1509c4abca
 
 def spec_at_high_pri(dataframe, priority):
     """ Identifies orders that are spec responsiveness level and above the given priority """
@@ -95,6 +81,13 @@ def selectplus_at_low_pri(dataframe, priority):
 
     print("\nSelectPlus prioritized below ", priority, ":")
     print( result.loc[:, display_columns] )
+    return result.loc[:, display_columns]
+
+def output_file(dataframe):
+    """ Creates a text file with the desired info """
+
+    with open('output.txt', 'w') as f:
+        f.write(dataframe)
 
 if __name__ == "__main__":
     orders = create_dataframe(active_orders_path)
@@ -103,5 +96,6 @@ if __name__ == "__main__":
     spec_at_high_pri(orders, 750)
     select_at_high_pri(orders, 720)
     selectplus_at_high_pri(orders, 710)
+    output_file(selectplus_at_low_pri(orders,750).to_string())
     
 
