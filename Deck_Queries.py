@@ -21,11 +21,12 @@ class Queries():
         self.excluded_customers = parameters["excluded customers"]
         self.display_columns = parameters["without_shapefile"]["columns to display"]
         self.columns_to_drop = parameters["without_shapefile"]["columns_to_drop"]
-        self.spec_at_high_pri_input = parameters["query _pri_inputs"]["spec_at_high_pri"]
+        self.spec_at_high_pri_input = parameters["query_pri_inputs"]["spec_at_high_pri"]
 
         # Create and clean the dataframe
         self.active_orders = self.create_dataframe()
         self.clean_dataframe(self.active_orders)
+        self.output()
 
     def create_dataframe(self):
         """ Searches the map contents for the active orders layer and returns a dataframe from it """
@@ -51,7 +52,7 @@ class Queries():
     def clean_dataframe(self, dataframe):
         """ Removes unnecessary fields from a given active_orders_ufp dataframe """
 
-        new_df = dataframe.drop(labels=columns_to_drop, axis=1)
+        new_df = dataframe.drop(labels=self.columns_to_drop, axis=1)
 
         return new_df[(new_df.tasking_priority > 690) & (~new_df.sap_customer_identifier.isin(['0000000306']) )]
 
@@ -76,3 +77,7 @@ class Queries():
         # Creates output file with above strings as text
         with open(r"C:\Users\ca003927\Music\Git\Deck_Audit\Local_only\output.txt", 'w') as f:
             f.write(spec_at_high_pri)
+
+
+queries = Queries()
+
