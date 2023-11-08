@@ -40,16 +40,6 @@ def clean_dataframe(dataframe):
 
     return new_df[new_df.tasking_pr > 690]
 
-def testing():
-    df = pd.DataFrame(gpd.read_file(active_orders_path))
-    columns_to_drop = [ 'classifica', 'data_acces', 'demand_typ', 'standing_t', 
-                        'purchase_1', 'country', 'lg01', 'lg02', 'imagebands', 'percent_co',
-                        'consider_f', 'consider_1', 'lg01_sched',
-                        'lg02_sched', 'scan_direc', 'line_rate', 'tdi_flag', 'tdi_offset',
-                        'geometry']
-    new_df = df.drop(labels=columns_to_drop, axis=1)
-    new_df = new_df[new_df.tasking_pr > 690]
-    print(new_df["tasking_pr"].min())
 
 def spec_at_high_pri(dataframe, priority):
     """ Identifies orders that are spec responsiveness level and above the given priority """
