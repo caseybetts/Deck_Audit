@@ -25,9 +25,12 @@ class Queries():
         self.arc_map_name = parameters["arc_map_name"]
         self.idi_customers = parameters["IDI_customers"]
 
+        # Create empty dataframe to contain all results
+        self.resulting_dataframe = pd.DataFrame()
+
         # Create and clean the dataframe
         self.active_orders = self.create_dataframe()
-        self.clean_dataframe(self.active_orders)
+        self.clean_dataframe()
         self.output()
 
     def create_dataframe(self):
@@ -50,12 +53,17 @@ class Queries():
 
         return df
 
-    def clean_dataframe(self, dataframe):
+    def clean_dataframe(self):
         """ Removes unnecessary fields from a given active_orders_ufp dataframe """
 
-        new_df = dataframe.drop(labels=self.columns_to_drop, axis=1)
+        # Remove unnecessary columns
+        self.active_orders.drop(labels=self.columns_to_drop, axis=1, inplace=True)
 
-        return new_df[(new_df.tasking_priority > 690) & (~new_df.sap_customer_identifier.isin(['0000000306']) )]
+        # Add column for the new priority
+        self.active_orders["New_Pri"] = 0
+
+        # Remove tasking priorities above 690
+        self.active_orders = self.active_orders[(self.active_orders.tasking_priority > 690)]
 
     def orders_at_high_pri(self, responsiveness):
         """ Identifies orders of the given responsiveness that are below the appropreate priority """
@@ -72,29 +80,7 @@ class Queries():
                         (self.active_orders.responsiveness_level == responsiveness) & 
                         (self.active_orders.tasking_priority > self.query_input["orders_at_low_pri"][responsiveness]["pri"]) & 
                         (~self.active_orders.sap_customer_identifier.isin(self.query_input["orders_at_low_pri"][responsiveness]["excluded_cust"]))]
-    
-    def idi_not_ending_in_1(self):
-        """ Identifies orders that should have 1 as the final digit """
 
-        return self.active_orders[
-                        (self.active_orders.sap_customer_identifier.isin(self.idi_customers.values())) &
-                        (~self.active_orders.tasking_priority.isin([701, 711, 721, 731, 741, 751, 761, 771, 781, 791, 801]))
-        ]
-    
-    def not_idi_ending_in_1(self):
-        """ Identifies orders that should not have 1 as the final digit """
-
-        return self.active_orders[
-                        (~self.active_orders.sap_customer_identifier.isin(self.idi_customers.values())) &
-                        (self.active_orders.tasking_priority.isin([701, 711, 721, 731, 741, 751, 761, 771, 781, 791, 801]))
-        ]
-    def internal_not_ending_in_2(self):
-        """ Identifies orders that should have 2 as the final digit """
-
-        return self.active_orders[
-                (self.active_orders.sap_customer_identifier.isin(self.query_input["internal_not_ending_in_2"]["included_cust"])) &
-                (~self.active_orders.tasking_priority.isin([702, 712, 722, 732, 742, 752, 762, 772, 782, 792, 802]))
-        ]
     
     def ending_digit_query(self, digit):
         """ Returns two dataframes, one for orders that should have the given ending digit, but don't, and one for orders that shouldn't have the given ending digit, but do """
@@ -169,6 +155,10 @@ class Queries():
             arcpy.AddMessage("Running query for ending digit: " + str(digit))
             results = self.ending_digit_query(digit)
 
+            # Append results to total dataframe
+            self.resulting_dataframe.append(results[0])
+            self.resulting_dataframe.append(results[1])
+
             # If the dataframe is not empty display it for orders that should have the given digit
             output_string += "\nThese orders should have an ending digit of " + str(digit)
             if results[0].empty:
@@ -187,6 +177,10 @@ class Queries():
         # Creates output file with above strings as text
         with open(r"C:\Users\cr003927\OneDrive - Maxar Technologies Holdings Inc\Private Drop\Git\Deck_Audit\Local_only\output.txt", 'w') as f:
             f.write(output_string)
+
+        # Create output .csv file
+
+        dataframe.to_csv('active_orders.csv', mode='a')
 
 
 queries = Queries()
