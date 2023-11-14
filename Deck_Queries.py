@@ -23,6 +23,7 @@ class Queries():
         self.query_input = parameters["query_inputs"]
         self.arc_project_loc = parameters["arc_project_path"]
         self.arc_map_name = parameters["arc_map_name"]
+        self.idi_customers = parameters["IDI_customers"]
 
         # Create and clean the dataframe
         self.active_orders = self.create_dataframe()
@@ -71,18 +72,118 @@ class Queries():
                         (self.active_orders.responsiveness_level == responsiveness) & 
                         (self.active_orders.tasking_priority > self.query_input["orders_at_low_pri"][responsiveness]["pri"]) & 
                         (~self.active_orders.sap_customer_identifier.isin(self.query_input["orders_at_low_pri"][responsiveness]["excluded_cust"]))]
+    
+    def idi_not_ending_in_1(self):
+        """ Identifies orders that should have 1 as the final digit """
 
+        return self.active_orders[
+                        (self.active_orders.sap_customer_identifier.isin(self.idi_customers.values())) &
+                        (~self.active_orders.tasking_priority.isin([701, 711, 721, 731, 741, 751, 761, 771, 781, 791, 801]))
+        ]
+    
+    def not_idi_ending_in_1(self):
+        """ Identifies orders that should not have 1 as the final digit """
+
+        return self.active_orders[
+                        (~self.active_orders.sap_customer_identifier.isin(self.idi_customers.values())) &
+                        (self.active_orders.tasking_priority.isin([701, 711, 721, 731, 741, 751, 761, 771, 781, 791, 801]))
+        ]
+    def internal_not_ending_in_2(self):
+        """ Identifies orders that should have 2 as the final digit """
+
+        return self.active_orders[
+                (self.active_orders.sap_customer_identifier.isin(self.query_input["internal_not_ending_in_2"]["included_cust"])) &
+                (~self.active_orders.tasking_priority.isin([702, 712, 722, 732, 742, 752, 762, 772, 782, 792, 802]))
+        ]
+    
+    def ending_digit_query(self, digit):
+        """ Returns two dataframes, one for orders that should have the given ending digit, but don't, and one for orders that shouldn't have the given ending digit, but do """
+
+        pri_list = [x + digit for x in range(700,810,10)]
+
+        if digit in [1,2,8,9]:
+
+            should = self.active_orders[
+                                        # customers to include (if any)
+                                        self.active_orders.sap_customer_identifier.isin(self.query_input["ending_digit_cust_list"][str(digit)]) &
+                                        # priorities that orders should have
+                                        ~self.active_orders.tasking_priority.isin(pri_list)
+                                    ]
+
+            should_not = self.active_orders[
+                                        # customers to exclude (if any)
+                                        ~self.active_orders.sap_customer_identifier.isin(self.query_input["ending_digit_cust_list"][str(digit)]) &
+                                        # priorities that orders should have
+                                        self.active_orders.tasking_priority.isin(pri_list)
+                                    ]
+            
+        if digit == 3:
+
+            should = self.active_orders[ 
+                                        # Order is not active on any spacecraft but WV03
+                                        (self.active_orders.ge01 == 0) & (self.active_orders.wv01 == 0) & (self.active_orders.wv02 == 0) &
+                                        # Order is not in the customer group
+                                        ~self.active_orders.sap_customer_identifier.isin(self.query_input["ending_digit_cust_list"][str(digit)]) &
+                                        # Order priority does not end in 3
+                                        ~self.active_orders.tasking_priority.isin(pri_list)
+            ]
+
+            should_not = pd.DataFrame()
+
+        if digit == 4:
+
+            should = self.active_orders[ 
+                                        # Order is active on more then one spacecraft
+                                        ((self.active_orders.ge01 == 1) | (self.active_orders.wv01 == 1) | (self.active_orders.wv02 == 1)) &
+                                        # Order is not in the customer group
+                                        ~self.active_orders.sap_customer_identifier.isin(self.query_input["ending_digit_cust_list"][str(digit)]) &
+                                        # Order priority does not end in 3
+                                        ~self.active_orders.tasking_priority.isin(pri_list)
+            ]
+
+            should_not = pd.DataFrame()
+
+        if digit in [0,5,6,7]:
+
+            should = pd.DataFrame()
+            should_not = pd.DataFrame()
+        
+        return [should, should_not]
+                                   
     def output(self):
-        """ Creates a text file with the desired info """
+        """ Creates a text file with the desired info """     
 
         output_string = ""
 
-        for query in ["high", "low"]:
-            for responsiveness in ['None', 'Select', 'SelectPlus']:
-                if query == "high": func = self.orders_at_high_pri
-                else: func = self.orders_at_low_pri
-                output_string += "\nThese " + responsiveness + " orders may be too " + query + func(responsiveness).loc[:, self.display_columns].to_string()
-    
+        # Run all queries for the middle digit (prioritized too high or too low)
+        # for query in ["high", "low"]:
+        #     for responsiveness in ['None', 'Select', 'SelectPlus']:
+        #         if query == "high": func = self.orders_at_high_pri
+        #         else: func = self.orders_at_low_pri
+                
+        #         output_string += "\nThese " + responsiveness + " orders may be too " + query + func(responsiveness).loc[:, self.display_columns].to_string()
+
+
+        # Find and append results of all the ending digit queries if they exist
+        for digit in range(10):
+            arcpy.AddMessage("Running query for ending digit: " + str(digit))
+            results = self.ending_digit_query(digit)
+
+            # If the dataframe is not empty display it for orders that should have the given digit
+            output_string += "\nThese orders should have an ending digit of " + str(digit)
+            if results[0].empty:
+                output_string += "\nNo orders need an ending digit of " + str(digit)
+            else:
+                output_string += results[0].loc[:, self.display_columns].to_string()
+
+            # If the dataframe is not empty display it for orders that should not have the given digit
+            output_string += "\nThese orders should not have an ending digit of " + str(digit)
+            if results[1].empty:
+                output_string += "\nNo wrong orders have an ending digit of " + str(digit)
+            else:
+                output_string += results[1].loc[:, self.display_columns].to_string()
+
+   
         # Creates output file with above strings as text
         with open(r"C:\Users\ca003927\Music\Git\Deck_Audit\Local_only\output.txt", 'w') as f:
             f.write(output_string)
