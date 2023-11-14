@@ -5,7 +5,7 @@ import pandas as pd
 import json
 from pathlib import Path
 
-parameters_path = Path(r"C:\Users\ca003927\Music\Git\Deck_Audit\Local_only\Sensitive_Parameters.json")
+parameters_path = Path(r"C:\Users\cr003927\OneDrive - Maxar Technologies Holdings Inc\Private Drop\Git\Deck_Audit\Local_only\Sensitive_Parameters.json")
 
 with open(parameters_path, 'r') as input:
     parameters = json.load(input)
@@ -99,7 +99,7 @@ class Queries():
     def ending_digit_query(self, digit):
         """ Returns two dataframes, one for orders that should have the given ending digit, but don't, and one for orders that shouldn't have the given ending digit, but do """
 
-        pri_list = [x + digit for x in range(700,810,10)]
+        pri_list = [x + digit for x in range(690,810,10)]
 
         if digit in [1,2,8,9]:
 
@@ -185,7 +185,7 @@ class Queries():
 
    
         # Creates output file with above strings as text
-        with open(r"C:\Users\ca003927\Music\Git\Deck_Audit\Local_only\output.txt", 'w') as f:
+        with open(r"C:\Users\cr003927\OneDrive - Maxar Technologies Holdings Inc\Private Drop\Git\Deck_Audit\Local_only\output.txt", 'w') as f:
             f.write(output_string)
 
 
