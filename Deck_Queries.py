@@ -3,6 +3,7 @@
 import arcpy
 import pandas as pd
 import json
+from math import floor 
 from pathlib import Path
 
 parameters_path = Path(r"C:\Users\cr003927\OneDrive - Maxar Technologies Holdings Inc\Private Drop\Git\Deck_Audit\Local_only\Sensitive_Parameters.json")
@@ -135,6 +136,13 @@ class Queries():
             should_not = pd.DataFrame()
         
         return [should, should_not]
+    
+    
+    def populate_new_priority(self, priority, ending_digit):
+        """ Populates the given row with a new priority with the correct ending digit (to be used in the apply function for a given query) """
+
+        return 700 + floor((priority - 700)/10) * 10 + ending_digit
+    
                                    
     def output(self):
         """ Creates a text file with the desired info """     
