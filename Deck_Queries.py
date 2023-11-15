@@ -186,9 +186,7 @@ class Queries():
         with open(r"C:\Users\cr003927\OneDrive - Maxar Technologies Holdings Inc\Private Drop\Git\Deck_Audit\Local_only\output.txt", 'w') as f:
             f.write(output_string)
 
-        # Create output .csv file
 
-        dataframe.to_csv('active_orders.csv', mode='a')
 
 
 queries = Queries()
