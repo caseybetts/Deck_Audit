@@ -38,7 +38,7 @@ class Queries():
         self.query_input = parameters["query_inputs"]
         self.arc_project_loc = parameters["arc_project_path"]
         self.arc_map_name = parameters["arc_map_name"]
-        self.idi_customers = parameters["IDI_customers"]
+        self.excluded_priorities = parameters["excluded_priorities"]
 
         # Create empty dataframe to contain all results
         self.resulting_dataframe = pd.DataFrame()
@@ -71,7 +71,7 @@ class Queries():
         self.active_orders["New_Pri"] = 0
 
         # Remove tasking priorities above 690
-        self.active_orders = self.active_orders[(self.active_orders.tasking_pr > 690)]
+        self.active_orders = self.active_orders[~self.active_orders.tasking_pr.isin(self.excluded_priorities)]
 
     def high_pri_query(self, responsiveness):
         """ Identifies orders of the given responsiveness that are below the appropreate priority """
@@ -101,6 +101,7 @@ class Queries():
         self.active_orders.New_Pri = self.active_orders.apply(lambda x: self.correct_priority(x.tasking_pr, x.sap_custom, x.ge01, x.wv02, x.wv01), axis=1)
     
     def correct_priority(self, priority, cust, ge01, wv02, wv01):
+        """ Returns a priority according a 'discision tree' for the given order parameters """
 
         if cust in self.query_input["ending_digit_cust_list"]["1"]:
             ending_digit = 1
