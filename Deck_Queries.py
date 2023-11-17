@@ -6,7 +6,7 @@ import json
 from math import floor 
 from pathlib import Path
 
-path = r"C:\Users\ca003927\Music\Git\Deck_Audit"
+path = r"C:\Users\cr003927\OneDrive - Maxar Technologies Holdings Inc\Private Drop\Git\Deck_Audit"
 
 # Paths to the active orders UFP, parameters and output
 parameters_path = Path( path + r"\Local_only\Sensitive_Parameters.json")
@@ -101,8 +101,9 @@ class Queries():
     def correct_priority(self, priority, cust, ge01, wv02, wv01):
         """ Returns a priority according a 'discision tree' for the given order parameters """
 
-
-        if cust in self.query_input["ending_digit_cust_list"]["1"]:
+        if cust in self.query_input["ending_digit_cust_list"]["0"]:
+            ending_digit = 0
+        elif cust in self.query_input["ending_digit_cust_list"]["1"]:
             ending_digit = 1
         elif cust in self.query_input["ending_digit_cust_list"]["2"]:
             ending_digit = 2
