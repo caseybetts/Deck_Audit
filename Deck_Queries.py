@@ -23,7 +23,7 @@ class Queries():
         """ Creates dataframe and sets varables """
 
         # define parameter variables
-        self.display_columns = parameters["without_shapefile"]["columns to display"]
+        self.display_columns = parameters["columns_to_display"]
         self.columns_to_drop = parameters["without_shapefile"]["columns_to_drop"]
         self.query_input = parameters["query_inputs"]
         self.arc_project_loc = parameters["arc_project_path"]
@@ -101,7 +101,31 @@ class Queries():
     def correct_priority(self, priority, cust, ge01, wv02, wv01):
         """ Returns a priority according a 'discision tree' for the given order parameters """
 
+        # Sets the middle digit
+        if cust in self.query_input["middle_digit_cust_list"]["1"]:
+            middle_digit = 1
+        elif cust in self.query_input["middle_digit_cust_list"]["2"]:
+            middle_digit = 2
+        elif cust in self.query_input["middle_digit_cust_list"]["3"]:
+            middle_digit = 3
+        elif cust in self.query_input["middle_digit_cust_list"]["4"]:
+            middle_digit = 4
+        elif cust in self.query_input["middle_digit_cust_list"]["5"]:
+            middle_digit = 5
+        elif cust in self.query_input["middle_digit_cust_list"]["6"]:
+            middle_digit = 6
+        elif cust in self.query_input["middle_digit_cust_list"]["7"]:
+            middle_digit = 7
+        elif cust in self.query_input["middle_digit_cust_list"]["8"]:
+            middle_digit = 8
+        elif cust in self.query_input["middle_digit_cust_list"]["9"]:
+            middle_digit = 9
+        elif cust in self.query_input["middle_digit_cust_list"]["0"]:
+            middle_digit = 0
+        else:
+            middle_digit = floor((priority - 700)/10)
 
+        # Sets the ending digit
         if cust in self.query_input["ending_digit_cust_list"]["1"]:
             ending_digit = 1
         elif cust in self.query_input["ending_digit_cust_list"]["2"]:
@@ -119,7 +143,7 @@ class Queries():
         else:
             ending_digit = 4
 
-        return 700 + floor((priority - 700)/10) * 10 + ending_digit
+        return 700 + (middle_digit * 10) + ending_digit
 
     def high_low_queries_string(self, query, responsiveness):
         """ Runs all queries for orders prioritized too high or too low and returns a string of the results """ 
@@ -144,6 +168,8 @@ class Queries():
         """ Runs all queries for orders with the wrong ending digit and returns a string of the results """ 
 
         output_string = ""
+        display_columns = self.display_columns
+        display_columns.append("New_Pri")
 
         # Find the slice of the dataframe where the current priority and correct priority are different
         if type == "has":
@@ -154,7 +180,7 @@ class Queries():
                 output_string += "No orders need to be changed to have an ending digit of " + str(digit)
             else:
                 output_string += "These orders should have an ending digit of " + str(digit) + "\n"
-                output_string += result.loc[:, self.display_columns].to_string()
+                output_string += result.loc[:, display_columns].to_string()
 
         elif type == "has_not":
             result = self.active_orders[(self.active_orders.New_Pri % 10 != digit) & (self.active_orders.tasking_priority % 10 == digit)]
@@ -164,7 +190,7 @@ class Queries():
                 output_string += "No orders found with an erroneous ending digit of " + str(digit)
             else:
                 output_string += "These orders should not have an ending digit of " + str(digit) + "\n"
-                output_string += result.loc[:, self.display_columns].to_string()
+                output_string += result.loc[:, display_columns].to_string()
 
         return output_string
                             
@@ -172,6 +198,8 @@ class Queries():
         """ Creates a text file with the desired info """
 
         output_string = ""
+        display_columns = self.display_columns
+        display_columns.append("New_Pri")
 
         # Appends middle digit text to string for each query criteria
         for query in ["high", "low"]:
@@ -190,5 +218,5 @@ class Queries():
             f.write(output_string)
 
         # Creates a .csv file from the dataframe of all changes needed
-        self.ending_digit_query().loc[:, self.display_columns].to_csv(path + r"\Local_only\changes_needed.csv")
+        self.ending_digit_query().loc[:, display_columns].to_csv(path + r"\Local_only\changes_needed.csv")
 
