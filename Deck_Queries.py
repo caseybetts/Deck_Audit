@@ -6,7 +6,7 @@ import json
 from math import floor 
 from pathlib import Path
 
-path = r"C:\Users\ca003927\Music\Git\Deck_Audit"
+path = r"C:\Users\cr003927\OneDrive - Maxar Technologies Holdings Inc\Private Drop\Git\Deck_Audit"
 
 # Paths to the active orders UFP, parameters and output
 parameters_path = Path( path + r"\Local_only\Sensitive_Parameters.json")
