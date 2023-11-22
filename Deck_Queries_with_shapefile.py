@@ -33,7 +33,7 @@ class Queries():
         """ Creates dataframe and sets varables """
 
         # define parameter variables
-        self.new_pri_field_name = "New_Pri"
+        self.new_pri_field_name = "Suggested_Priority"
         self.display_columns = parameters["columns_to_display"] + [self.new_pri_field_name]
         self.columns_to_drop = parameters["with_shapefile"]["columns_to_drop"]
         self.query_input = parameters["query_inputs"]

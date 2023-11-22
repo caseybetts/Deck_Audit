@@ -6,7 +6,7 @@ import json
 from math import floor 
 from pathlib import Path
 
-path = r"C:\Users\cr003927\OneDrive - Maxar Technologies Holdings Inc\Private Drop\Git\Deck_Audit"
+path = r"C:\Users\ca003927\Music\Git\Deck_Audit"
 
 # Paths to the active orders UFP, parameters and output
 parameters_path = Path( path + r"\Local_only\Sensitive_Parameters.json")
@@ -19,11 +19,12 @@ with open(parameters_path, 'r') as input:
 class Queries():
     """ Contains the qureie and output functions needed for the deck audit """
 
-    def __init__(self) -> None:
+    def __init__(self, active_orders_ufp) -> None:
         """ Creates dataframe and sets varables """
 
         # define parameter variables
-        self.display_columns = parameters["columns_to_display"]
+        self.new_pri_field_name = "Suggested_Priority"
+        self.display_columns = parameters["columns_to_display"] + [self.new_pri_field_name]
         self.columns_to_drop = parameters["without_shapefile"]["columns_to_drop"]
         self.query_input = parameters["query_inputs"]
         self.arc_project_loc = parameters["arc_project_path"]
@@ -34,7 +35,7 @@ class Queries():
         self.resulting_dataframe = pd.DataFrame()
 
         # Create and clean the dataframe
-        self.active_orders = self.create_dataframe()
+        self.active_orders = active_orders_ufp
         self.clean_dataframe()
         self.populate_new_priority()
         self.output()
@@ -66,9 +67,9 @@ class Queries():
         self.active_orders.drop(labels=self.columns_to_drop, axis=1, inplace=True)
 
         # Add column for the new priority
-        self.active_orders["New_Pri"] = 0
+        self.active_orders[self.new_pri_field_name] = 0
 
-        # Remove tasking priorities above 690
+        # Remove unwanted tasking priorities
         self.active_orders = self.active_orders[~self.active_orders.tasking_priority.isin(self.excluded_priorities)]
 
     def high_pri_query(self, responsiveness):
@@ -138,6 +139,8 @@ class Queries():
             ending_digit = 8
         elif cust in self.query_input["ending_digit_cust_list"]["9"]:
             ending_digit = 9
+        elif cust in self.query_input["ending_digit_cust_list"]["0"]:
+            ending_digit = 0
         elif (ge01 == 0) and (wv02 ==0) and (wv01 == 0):
             ending_digit = 3
         else:
@@ -160,7 +163,7 @@ class Queries():
         if query_df.empty:
             output_string += "No " + responsiveness + " orders seemed to be too " + query
         else:
-            output_string += "These " + responsiveness + " orders may be too " + query + "\n" + query_df.loc[:, self.display_columns].to_string()
+            output_string += "These " + responsiveness + " orders may be too " + query + "\n" + query_df.loc[:, self.display_columns[:-1]].to_string()
 
         return output_string
 
@@ -168,8 +171,6 @@ class Queries():
         """ Runs all queries for orders with the wrong ending digit and returns a string of the results """ 
 
         output_string = ""
-        display_columns = self.display_columns
-        display_columns.append("New_Pri")
 
         # Find the slice of the dataframe where the current priority and correct priority are different
         if type == "has":
@@ -180,7 +181,7 @@ class Queries():
                 output_string += "No orders need to be changed to have an ending digit of " + str(digit)
             else:
                 output_string += "These orders should have an ending digit of " + str(digit) + "\n"
-                output_string += result.loc[:, display_columns].to_string()
+                output_string += result.loc[:, self.display_columns].to_string()
 
         elif type == "has_not":
             result = self.active_orders[(self.active_orders.New_Pri % 10 != digit) & (self.active_orders.tasking_priority % 10 == digit)]
@@ -190,7 +191,7 @@ class Queries():
                 output_string += "No orders found with an erroneous ending digit of " + str(digit)
             else:
                 output_string += "These orders should not have an ending digit of " + str(digit) + "\n"
-                output_string += result.loc[:, display_columns].to_string()
+                output_string += result.loc[:, self.display_columns].to_string()
 
         return output_string
                             
@@ -198,8 +199,6 @@ class Queries():
         """ Creates a text file with the desired info """
 
         output_string = ""
-        display_columns = self.display_columns
-        display_columns.append("New_Pri")
 
         # Appends middle digit text to string for each query criteria
         for query in ["high", "low"]:
@@ -218,5 +217,5 @@ class Queries():
             f.write(output_string)
 
         # Creates a .csv file from the dataframe of all changes needed
-        self.ending_digit_query().loc[:, display_columns].to_csv(path + r"\Local_only\changes_needed.csv")
+        self.ending_digit_query().loc[:, self.display_columns].to_csv(path + r"\Local_only\changes_needed.csv")
 
