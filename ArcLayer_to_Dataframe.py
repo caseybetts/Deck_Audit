@@ -21,9 +21,9 @@ def create_dataframe(layer_name):
 
     # Read the geo database table into pandas dataframe
     
-    # fields = [f.name for f in arcpy.ListFields(layer)]
+    fields = [f.name for f in arcpy.ListFields(layer)]
 
-    # with arcpy.da.SearchCursor(layer, fields) as cursor:
-    #     df = pd.DataFrame(list(cursor), columns=fields)
+    with arcpy.da.SearchCursor(layer, fields) as cursor:
+        df = pd.DataFrame(list(cursor), columns=fields)
 
-    # return df
+    return df

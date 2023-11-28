@@ -35,7 +35,7 @@ class Queries():
         self.resulting_dataframe = pd.DataFrame()
 
         # Create and clean the dataframe
-        self.active_orders = self.create_dataframe()
+        self.active_orders = active_orders_ufp
         self.clean_dataframe()
         self.populate_new_priority()
         self.output()
