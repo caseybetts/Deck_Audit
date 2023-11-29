@@ -19,7 +19,7 @@ with open(parameters_path, 'r') as input:
 class Queries():
     """ Contains the qureie and output functions needed for the deck audit """
 
-    def __init__(self, active_orders_ufp) -> None:
+    def __init__(self, active_orders_ufp, hotlist_orders) -> None:
         """ Creates dataframe and sets varables """
 
         # define parameter variables
@@ -34,31 +34,16 @@ class Queries():
         # Create empty dataframe to contain all results
         self.resulting_dataframe = pd.DataFrame()
 
-        # Create and clean the dataframe
+        # Initialize and clean the active orders dataframe
         self.active_orders = active_orders_ufp
         self.clean_dataframe()
+
+        # Get a list of SOLIs from the hotlist dataframe
+        self.hotlist_SOLIs = hotlist_orders.soli.tolist()
+
         self.populate_new_priority()
+        self.high_pri_query('None')
         self.output()
-
-    def create_dataframe(self):
-        """ Searches the map contents for the active orders layer and returns a dataframe from it """
-        # Set variables to current project and map
-        aprx = arcpy.mp.ArcGISProject("current")
-        map = aprx.activeMap
-
-        # Search layers for the active orders
-        for layer in map.listLayers():
-            if layer.isFeatureLayer:
-                if layer.name == 'PROD_Active_Orders_UFP':
-                    break
-
-        # Read the geo database table into pandas dataframe
-        fields = [f.name for f in arcpy.ListFields(layer)]
-
-        with arcpy.da.SearchCursor(layer, fields) as cursor:
-            df = pd.DataFrame(list(cursor), columns=fields)
-
-        return df
 
     def clean_dataframe(self):
         """ Removes unnecessary fields from a given active_orders_ufp dataframe """
@@ -75,18 +60,32 @@ class Queries():
     def high_pri_query(self, responsiveness):
         """ Returns a dataframe of orders of the given responsiveness that are below the appropriate priority """
 
-        return self.active_orders[
-                        (self.active_orders.responsiveness_level == responsiveness) & 
-                        (self.active_orders.tasking_priority < self.query_input["orders_at_high_pri"][responsiveness]["pri"]) & 
-                        (~self.active_orders.sap_customer_identifier.isin(self.query_input["orders_at_high_pri"][responsiveness]["excluded_cust"]))].sort_values(by="sap_customer_identifier")
-    
+        # Defines a slice of the active orders that are:
+            #  1) the given responsivnes
+            #  2) at a priority lower than the threshold and
+            #  3) not in the excluded orders list
+        high_pri_orders = self.active_orders[
+                            (self.active_orders.responsiveness_level == responsiveness) & 
+                            (self.active_orders.tasking_priority < self.query_input["orders_at_high_pri"][responsiveness]["pri"]) & 
+                            (~self.active_orders.sap_customer_identifier.isin(self.query_input["orders_at_high_pri"][responsiveness]["excluded_cust"]))].sort_values(by="sap_customer_identifier")
+
+        # If spec is the responsiveness, drop any order that is on the hotlist
+        if responsiveness == "None" or responsiveness == "Select":
+            high_pri_orders = high_pri_orders[~high_pri_orders.external_id.isin(self.hotlist_SOLIs)]
+
+        return high_pri_orders
+
     def low_pri_query(self, responsiveness):
         """ Returns a dataframe of orders of the given responsiveness that are above the appropriate priority """
 
+        # Returns a slice of the active orders that are:
+            #  1) the given responsivnes
+            #  2) at a priority higher than the threshold and
+            #  3) not in the excluded orders list
         return self.active_orders[
-                        (self.active_orders.responsiveness_level == responsiveness) & 
-                        (self.active_orders.tasking_priority > self.query_input["orders_at_low_pri"][responsiveness]["pri"]) & 
-                        (~self.active_orders.sap_customer_identifier.isin(self.query_input["orders_at_low_pri"][responsiveness]["excluded_cust"]))].sort_values(by="sap_customer_identifier")
+                    (self.active_orders.responsiveness_level == responsiveness) & 
+                    (self.active_orders.tasking_priority > self.query_input["orders_at_low_pri"][responsiveness]["pri"]) & 
+                    (~self.active_orders.sap_customer_identifier.isin(self.query_input["orders_at_low_pri"][responsiveness]["excluded_cust"]))].sort_values(by="sap_customer_identifier")
 
     def ending_digit_query(self):
         """ For the given digit this will find all orders that do not have that digit and populate the new_pri column with the suggested priority """
