@@ -69,7 +69,7 @@ class Queries():
                             (self.active_orders.tasking_priority < self.query_input["orders_at_high_pri"][responsiveness]["pri"]) & 
                             (~self.active_orders.sap_customer_identifier.isin(self.query_input["orders_at_high_pri"][responsiveness]["excluded_cust"]))].sort_values(by="sap_customer_identifier")
 
-        # If spec is the responsiveness, drop any order that is on the hotlist
+        # For Spec and Select queries, drop any order that is on the hotlist
         if responsiveness == "None" or responsiveness == "Select":
             high_pri_orders = high_pri_orders[~high_pri_orders.external_id.isin(self.hotlist_SOLIs)]
 
