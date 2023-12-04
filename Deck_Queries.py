@@ -1,4 +1,19 @@
-# This file contains the queries used to interrogate the tasking deck and will return the results
+# Author: Casey Betts, 2023
+# This file contains the queries used to interrogate the tasking deck and output information on misprioritized orders
+
+# To Do:
+# + Remove EUSI from the zero dollar list
+# + Exclude all SOOPremium from last digit check
+# - Check for SOOPremium low pri
+# - What do DAF10 (35915) and DAF32 (58480) come in at?
+# + Add DAF75 to IDI customer list
+# - Investigate what project is cust 3 pri 784?
+# + Change cust 141 to calibration list
+# - Investigate what customer is 252? And do we need to differentiate from external orders?
+# - Add pri cutoff to output
+# + Exclude all IDI from the Spec prioritized too high query
+# - Look for any external orders above 800
+# - Omit Eastern Australia Project based on cust number and pri
 
 import arcpy
 import pandas as pd
@@ -6,21 +21,21 @@ import json
 from math import floor 
 from pathlib import Path
 
-path = r"C:\Users\ca003927\Music\Git\Deck_Audit"
-
-# Paths to the active orders UFP, parameters and output
-parameters_path = Path( path + r"\Local_only\Sensitive_Parameters.json")
-output_path = Path( path + r"\Local_only\output.txt")
-
-with open(parameters_path, 'r') as input:
-    parameters = json.load(input)
-
+#path = r"C:\Users\ca003927\Music\Git\Deck_Audit"
 
 class Queries():
     """ Contains the qureie and output functions needed for the deck audit """
 
-    def __init__(self, active_orders_ufp, hotlist_orders) -> None:
+    def __init__(self, active_orders_ufp, hotlist_orders, path) -> None:
         """ Creates dataframe and sets varables """
+
+        # Define the path to the parameters and the output
+        self.parameters_path = Path( path + r"\Local_only\Sensitive_Parameters.json")
+        self.output_path = path + r"\Local_only"
+
+        # Load .json file with parameters
+        with open(self.parameters_path, 'r') as input:
+            parameters = json.load(input)
 
         # define parameter variables
         self.new_pri_field_name = "Suggested_Priority"
@@ -43,6 +58,7 @@ class Queries():
 
         self.populate_new_priority()
         self.high_pri_query('None')
+        self.ending_digit_dataframe = self.ending_digit_query()
         self.output()
 
     def clean_dataframe(self):
@@ -64,14 +80,18 @@ class Queries():
             #  1) the given responsivnes
             #  2) at a priority lower than the threshold and
             #  3) not in the excluded orders list
+            #  4) not in the IDI customer list
         high_pri_orders = self.active_orders[
                             (self.active_orders.responsiveness_level == responsiveness) & 
                             (self.active_orders.tasking_priority < self.query_input["orders_at_high_pri"][responsiveness]["pri"]) & 
-                            (~self.active_orders.sap_customer_identifier.isin(self.query_input["orders_at_high_pri"][responsiveness]["excluded_cust"]))].sort_values(by="sap_customer_identifier")
+                            (~self.active_orders.sap_customer_identifier.isin(self.query_input["orders_at_high_pri"][responsiveness]["excluded_cust"]))
+                            ].sort_values(by="sap_customer_identifier")
+        
 
-        # For Spec and Select queries, drop any order that is on the hotlist
+        # For Spec and Select queries, drop any hotlist or IDI orders
         if responsiveness == "None" or responsiveness == "Select":
-            high_pri_orders = high_pri_orders[~high_pri_orders.external_id.isin(self.hotlist_SOLIs)]
+            high_pri_orders = high_pri_orders[~high_pri_orders.external_id.isin(self.hotlist_SOLIs) &
+                                              (~self.active_orders.sap_customer_identifier.isin(self.query_input["ending_digit_cust_list"]["1"]))]
 
         return high_pri_orders
 
@@ -90,7 +110,11 @@ class Queries():
     def ending_digit_query(self):
         """ For the given digit this will find all orders that do not have that digit and populate the new_pri column with the suggested priority """
 
-        return self.active_orders[(self.active_orders.tasking_priority % 10) != (self.active_orders[self.new_pri_field_name] % 10)]
+        # Define dataframe that has a different suggested ending digit than the actual ending digit
+        ending_digit_df = self.active_orders[(self.active_orders.tasking_priority % 10) != (self.active_orders[self.new_pri_field_name] % 10)]
+
+        # Return dataframe without any SOOPremium responsiveness
+        return ending_digit_df[ending_digit_df.responsiveness_level != 'SOOPremium']
     
     def populate_new_priority(self):
         """ Populates the given row with a new priority with the correct ending digit (to be used in the apply function for a given query) """
@@ -166,15 +190,15 @@ class Queries():
 
         return output_string
 
-    def ending_digit_querie_string(self, digit, type):
+    def ending_digit_query_string(self, digit, type):
         """ Runs all queries for orders with the wrong ending digit and returns a string of the results """ 
 
         output_string = ""
 
-        # Find the slice of the dataframe where the current priority and correct priority are different
         if type == "has":
-            result = self.active_orders[(self.active_orders[self.new_pri_field_name] % 10 == digit) & (self.active_orders.tasking_priority % 10 != digit)].sort_values(by="sap_customer_identifier")
-
+            # Find the slice of the dataframe where the current priority ends in the given digit
+            result = self.ending_digit_dataframe[self.ending_digit_dataframe.tasking_priority % 10 == digit].sort_values(by="sap_customer_identifier")
+            
             # If the dataframe is not empty display it for orders that should have the given digit
             if result.empty:
                 output_string += "No orders need to be changed to have an ending digit of " + str(digit)
@@ -183,7 +207,8 @@ class Queries():
                 output_string += result.loc[:, self.display_columns].to_string()
 
         elif type == "has_not":
-            result = self.active_orders[(self.active_orders[self.new_pri_field_name] % 10 != digit) & (self.active_orders.tasking_priority % 10 == digit)].sort_values(by="sap_customer_identifier")
+            # Find the slice of the dataframe where the suggested priority end in the given digit
+            result = self.ending_digit_dataframe[self.ending_digit_dataframe[self.new_pri_field_name] % 10 == digit].sort_values(by="sap_customer_identifier")
 
             # If the dataframe is not empty display it for orders that should not have the given digit
             if result.empty:
@@ -202,7 +227,7 @@ class Queries():
         # Appends ending digit text to string for each ending digit
         for digit in range(1,10):
             for type in ["has", "has_not"]:
-                output_string +=  self.ending_digit_querie_string(digit, type)
+                output_string +=  self.ending_digit_query_string(digit, type)
                 output_string += "\n\n\n"
 
         # Appends middle digit text to string for each query criteria
@@ -212,9 +237,9 @@ class Queries():
                 output_string += "\n\n\n"
 
         # Creates output file with above strings as text
-        with open(path + r"\Local_only\output.txt", 'w') as f:
+        with open(self.output_path + "\output.txt", 'w') as f:
             f.write(output_string)
 
         # Creates a .csv file from the dataframe of all changes needed
-        self.ending_digit_query().loc[:, self.display_columns].to_csv(path + r"\Local_only\changes_needed.csv")
+        self.ending_digit_dataframe.loc[:, self.display_columns].to_csv(self.output_path + "\changes_needed.csv")
 
