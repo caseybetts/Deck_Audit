@@ -15,6 +15,7 @@
 # - Look for any external orders above 800
 # - Omit Eastern Australia Project based on cust number and pri
 # + Add order description and PO and $/sqkm to the output
+# - Create exception for the Babylon Vivid project
 
 import arcpy
 import pandas as pd
@@ -45,6 +46,7 @@ class Queries():
         self.query_input = parameters["query_inputs"]
         self.arc_map_name = parameters["arc_map_name"]
         self.excluded_priorities = parameters["excluded_priorities"]
+        self.descriptions = list(self.query_input["project_descriptions"].keys())
 
         # Create empty dataframe to contain all results
         self.resulting_dataframe = pd.DataFrame()
@@ -72,6 +74,78 @@ class Queries():
 
         # Remove unwanted tasking priorities
         self.active_orders = self.active_orders[~self.active_orders.tasking_priority.isin(self.excluded_priorities)]
+
+    def populate_new_priority(self):
+        """ Populates the given row with a new priority with the correct ending digit (to be used in the apply function for a given query) """
+
+        # Populate order priorities based on customer or spacecraft
+        self.active_orders[self.new_pri_field_name] = self.active_orders.apply(lambda x: self.correct_priority(x.tasking_priority, x.sap_customer_identifier, x.ge01, x.wv02, x.wv01), axis=1)
+
+        # Populate order priorities base on project
+        self.active_orders[self.new_pri_field_name] = self.active_orders.apply(lambda x: self.project_priority(x[self.new_pri_field_name], x.order_description), axis=1)
+
+    def project_priority(self, current_pri, description):
+        """ Returns a priority according to whether or not the order is in a special project or not """
+
+        if description in self.descriptions:
+
+            # Identify specific description
+            for i in range(len(self.descriptions)):
+
+                # Return the priority for the matching description
+                if description == self.descriptions[i]:
+                        return self.query_input["project_descriptions"][description]
+        else:
+            return current_pri
+    
+    def correct_priority(self, priority, cust, ge01, wv02, wv01):
+            """ Returns a priority according a 'discision tree' for the given order parameters """
+
+            # Sets the middle digit
+            if cust in self.query_input["middle_digit_cust_list"]["1"]:
+                middle_digit = 1
+            elif cust in self.query_input["middle_digit_cust_list"]["2"]:
+                middle_digit = 2
+            elif cust in self.query_input["middle_digit_cust_list"]["3"]:
+                middle_digit = 3
+            elif cust in self.query_input["middle_digit_cust_list"]["4"]:
+                middle_digit = 4
+            elif cust in self.query_input["middle_digit_cust_list"]["5"]:
+                middle_digit = 5
+            elif cust in self.query_input["middle_digit_cust_list"]["6"]:
+                middle_digit = 6
+            elif cust in self.query_input["middle_digit_cust_list"]["7"]:
+                middle_digit = 7
+            elif cust in self.query_input["middle_digit_cust_list"]["8"]:
+                middle_digit = 8
+            elif cust in self.query_input["middle_digit_cust_list"]["9"]:
+                middle_digit = 9
+            elif cust in self.query_input["middle_digit_cust_list"]["0"]:
+                middle_digit = 0
+            else:
+                middle_digit = floor((priority - 700)/10)
+
+            # Sets the ending digit
+            if cust in self.query_input["ending_digit_cust_list"]["1"]:
+                ending_digit = 1
+            elif cust in self.query_input["ending_digit_cust_list"]["2"]:
+                ending_digit = 2
+            elif cust in self.query_input["ending_digit_cust_list"]["6"]:
+                ending_digit = 6
+            elif cust in self.query_input["ending_digit_cust_list"]["7"]:
+                ending_digit = 7
+            elif cust in self.query_input["ending_digit_cust_list"]["8"]:
+                ending_digit = 8
+            elif cust in self.query_input["ending_digit_cust_list"]["9"]:
+                ending_digit = 9
+            elif cust in self.query_input["ending_digit_cust_list"]["0"]:
+                ending_digit = 0
+            elif (ge01 == 0) and (wv02 ==0) and (wv01 == 0):
+                ending_digit = 3
+            else:
+                ending_digit = 4
+
+            return 700 + (middle_digit * 10) + ending_digit
 
     def high_pri_query(self, responsiveness):
         """ Returns a dataframe of orders of the given responsiveness that are below the appropriate priority """
@@ -116,61 +190,6 @@ class Queries():
         # Return dataframe without any SOOPremium responsiveness
         return ending_digit_df[ending_digit_df.responsiveness_level != 'SOOPremium']
     
-    def populate_new_priority(self):
-        """ Populates the given row with a new priority with the correct ending digit (to be used in the apply function for a given query) """
-
-        # Populate orders that have a customer based criteria
-        self.active_orders[self.new_pri_field_name] = self.active_orders.apply(lambda x: self.correct_priority(x.tasking_priority, x.sap_customer_identifier, x.ge01, x.wv02, x.wv01), axis=1)
-    
-    def correct_priority(self, priority, cust, ge01, wv02, wv01):
-        """ Returns a priority according a 'discision tree' for the given order parameters """
-
-        # Sets the middle digit
-        if cust in self.query_input["middle_digit_cust_list"]["1"]:
-            middle_digit = 1
-        elif cust in self.query_input["middle_digit_cust_list"]["2"]:
-            middle_digit = 2
-        elif cust in self.query_input["middle_digit_cust_list"]["3"]:
-            middle_digit = 3
-        elif cust in self.query_input["middle_digit_cust_list"]["4"]:
-            middle_digit = 4
-        elif cust in self.query_input["middle_digit_cust_list"]["5"]:
-            middle_digit = 5
-        elif cust in self.query_input["middle_digit_cust_list"]["6"]:
-            middle_digit = 6
-        elif cust in self.query_input["middle_digit_cust_list"]["7"]:
-            middle_digit = 7
-        elif cust in self.query_input["middle_digit_cust_list"]["8"]:
-            middle_digit = 8
-        elif cust in self.query_input["middle_digit_cust_list"]["9"]:
-            middle_digit = 9
-        elif cust in self.query_input["middle_digit_cust_list"]["0"]:
-            middle_digit = 0
-        else:
-            middle_digit = floor((priority - 700)/10)
-
-        # Sets the ending digit
-        if cust in self.query_input["ending_digit_cust_list"]["1"]:
-            ending_digit = 1
-        elif cust in self.query_input["ending_digit_cust_list"]["2"]:
-            ending_digit = 2
-        elif cust in self.query_input["ending_digit_cust_list"]["6"]:
-            ending_digit = 6
-        elif cust in self.query_input["ending_digit_cust_list"]["7"]:
-            ending_digit = 7
-        elif cust in self.query_input["ending_digit_cust_list"]["8"]:
-            ending_digit = 8
-        elif cust in self.query_input["ending_digit_cust_list"]["9"]:
-            ending_digit = 9
-        elif cust in self.query_input["ending_digit_cust_list"]["0"]:
-            ending_digit = 0
-        elif (ge01 == 0) and (wv02 ==0) and (wv01 == 0):
-            ending_digit = 3
-        else:
-            ending_digit = 4
-
-        return 700 + (middle_digit * 10) + ending_digit
-
     def high_low_queries_string(self, query, responsiveness):
         """ Runs either a 'too high' or 'too low' query for the given responsiveness and returns a string of the results """ 
 
