@@ -4,7 +4,7 @@
 # To Do:
 # + Remove EUSI from the zero dollar list
 # + Exclude all SOOPremium from last digit check
-# - Check for SOOPremium low pri
+# + Check for SOOPremium low pri
 # - What do DAF10 (35915) and DAF32 (58480) come in at?
 # + Add DAF75 to IDI customer list
 # - Investigate what project is cust 3 pri 784?
@@ -172,21 +172,19 @@ class Queries():
         return 700 + (middle_digit * 10) + ending_digit
 
     def high_low_queries_string(self, query, responsiveness):
-        """ Runs all queries for orders prioritized too high or too low and returns a string of the results """ 
+        """ Runs either a 'too high' or 'too low' query for the given responsiveness and returns a string of the results """ 
 
         output_string = ""
 
-        # Run all queries for the middle digit (prioritized too high or too low)
-
-        if query == "high": func = self.high_pri_query
+        if query == "higher": func = self.high_pri_query
         else: func = self.low_pri_query
         
         query_df = func(responsiveness)
 
         if query_df.empty:
-            output_string += "No " + responsiveness + " orders seemed to be too " + query
+            output_string += "No " + responsiveness + " orders are prioritized " + query + " than " + self.query_input["orders_at_high_pri"][responsiveness]["pri"]
         else:
-            output_string += "These " + responsiveness + " orders may be too " + query + "\n" + query_df.loc[:, self.display_columns[:-1]].to_string()
+            output_string += "These " + responsiveness + " orders are prioritized " + query + " than " + self.query_input["orders_at_high_pri"][responsiveness]["pri"] + ":\n" + query_df.loc[:, self.display_columns[:-1]].to_string()
 
         return output_string
 
@@ -231,8 +229,8 @@ class Queries():
                 output_string += "\n\n\n"
 
         # Appends middle digit text to string for each query criteria
-        for query in ["high", "low"]:
-            for responsiveness in ['None', 'Select', 'SelectPlus']:
+        for query in ["higher", "lower"]:
+            for responsiveness in ['None', 'Select', 'SelectPlus', 'SOOPremium']:
                 output_string += self.high_low_queries_string(query, responsiveness)
                 output_string += "\n\n\n"
 
