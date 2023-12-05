@@ -10,10 +10,11 @@
 # - Investigate what project is cust 3 pri 784?
 # + Change cust 141 to calibration list
 # - Investigate what customer is 252? And do we need to differentiate from external orders?
-# - Add pri cutoff to output
+# + Add pri cutoff to output
 # + Exclude all IDI from the Spec prioritized too high query
 # - Look for any external orders above 800
 # - Omit Eastern Australia Project based on cust number and pri
+# + Add order description and PO and $/sqkm to the output
 
 import arcpy
 import pandas as pd
@@ -42,7 +43,6 @@ class Queries():
         self.display_columns = parameters["columns_to_display"] + [self.new_pri_field_name]
         self.columns_to_drop = parameters["without_shapefile"]["columns_to_drop"]
         self.query_input = parameters["query_inputs"]
-        self.arc_project_loc = parameters["arc_project_path"]
         self.arc_map_name = parameters["arc_map_name"]
         self.excluded_priorities = parameters["excluded_priorities"]
 
@@ -182,9 +182,9 @@ class Queries():
         query_df = func(responsiveness)
 
         if query_df.empty:
-            output_string += "No " + responsiveness + " orders are prioritized " + query + " than " + self.query_input["orders_at_high_pri"][responsiveness]["pri"]
+            output_string += "No " + responsiveness + " orders are prioritized " + query + " than " + str(self.query_input["orders_at_high_pri"][responsiveness]["pri"])
         else:
-            output_string += "These " + responsiveness + " orders are prioritized " + query + " than " + self.query_input["orders_at_high_pri"][responsiveness]["pri"] + ":\n" + query_df.loc[:, self.display_columns[:-1]].to_string()
+            output_string += "These " + responsiveness + " orders are prioritized " + query + " than " + str(self.query_input["orders_at_high_pri"][responsiveness]["pri"]) + ":\n" + query_df.loc[:, self.display_columns[:-1]].to_string()
 
         return output_string
 
@@ -201,7 +201,7 @@ class Queries():
             if result.empty:
                 output_string += "No orders need to be changed to have an ending digit of " + str(digit)
             else:
-                output_string += "These orders should have an ending digit of " + str(digit) + "\n"
+                output_string += "These orders should not have an ending digit of " + str(digit) + "\n"
                 output_string += result.loc[:, self.display_columns].to_string()
 
         elif type == "has_not":
@@ -212,7 +212,7 @@ class Queries():
             if result.empty:
                 output_string += "No orders found with an erroneous ending digit of " + str(digit)
             else:
-                output_string += "These orders should not have an ending digit of " + str(digit) + "\n"
+                output_string += "These orders should have an ending digit of " + str(digit) + "\n"
                 output_string += result.loc[:, self.display_columns].to_string()
 
         return output_string
