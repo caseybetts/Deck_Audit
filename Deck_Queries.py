@@ -13,9 +13,9 @@
 # + Add pri cutoff to output
 # + Exclude all IDI from the Spec prioritized too high query
 # - Look for any external orders above 800
-# - Omit Eastern Australia Project based on cust number and pri
+# + Omit Eastern Australia Project based on cust number and pri
 # + Add order description and PO and $/sqkm to the output
-# - Create exception for the Babylon Vivid project
+# + Create exception for the Babylon Vivid project
 
 import arcpy
 import pandas as pd
@@ -75,6 +75,10 @@ class Queries():
         # Remove unwanted tasking priorities
         self.active_orders = self.active_orders[~self.active_orders.tasking_priority.isin(self.excluded_priorities)]
 
+        # Remove unwanted tasking priority and customer combinations
+        for key in self.query_input["customer_pri_combo_to_ignore"]:
+            self.active_orders = self.active_orders[(self.active_orders.sap_customer_identifier != key) & (self.active_orders.tasking_priority != self.query_input["customer_pri_combo_to_ignore"][key])]
+
     def populate_new_priority(self):
         """ Populates the given row with a new priority with the correct ending digit (to be used in the apply function for a given query) """
 
@@ -82,10 +86,10 @@ class Queries():
         self.active_orders[self.new_pri_field_name] = self.active_orders.apply(lambda x: self.correct_priority(x.tasking_priority, x.sap_customer_identifier, x.ge01, x.wv02, x.wv01), axis=1)
 
         # Populate order priorities base on project
-        self.active_orders[self.new_pri_field_name] = self.active_orders.apply(lambda x: self.project_priority(x[self.new_pri_field_name], x.order_description), axis=1)
+        self.active_orders[self.new_pri_field_name] = self.active_orders.apply(lambda x: self.description_priority(x[self.new_pri_field_name], x.order_description), axis=1)
 
-    def project_priority(self, current_pri, description):
-        """ Returns a priority according to whether or not the order is in a special project or not """
+    def description_priority(self, current_pri, description):
+        """ Returns a priority according to the order's description """
 
         if description in self.descriptions:
 
@@ -218,7 +222,7 @@ class Queries():
             
             # If the dataframe is not empty display it for orders that should have the given digit
             if result.empty:
-                output_string += "No orders need to be changed to have an ending digit of " + str(digit)
+                output_string += "No orders found with an erroneous ending digit of " + str(digit)
             else:
                 output_string += "These orders should not have an ending digit of " + str(digit) + "\n"
                 output_string += result.loc[:, self.display_columns].to_string()
@@ -229,7 +233,7 @@ class Queries():
 
             # If the dataframe is not empty display it for orders that should not have the given digit
             if result.empty:
-                output_string += "No orders found with an erroneous ending digit of " + str(digit)
+                output_string += "No orders need to be changed to have an ending digit of " + str(digit)
             else:
                 output_string += "These orders should have an ending digit of " + str(digit) + "\n"
                 output_string += result.loc[:, self.display_columns].to_string()
