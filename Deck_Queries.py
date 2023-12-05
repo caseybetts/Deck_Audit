@@ -12,7 +12,7 @@
 # - Investigate what customer is 252? And do we need to differentiate from external orders?
 # + Add pri cutoff to output
 # + Exclude all IDI from the Spec prioritized too high query
-# - Look for any external orders above 800
+# + Look for any external orders above 800
 # + Omit Eastern Australia Project based on cust number and pri
 # + Add order description and PO and $/sqkm to the output
 # + Create exception for the Babylon Vivid project
@@ -199,15 +199,15 @@ class Queries():
 
         output_string = ""
 
-        if query == "higher": func = self.high_pri_query
+        if query == "high": func = self.high_pri_query
         else: func = self.low_pri_query
         
         query_df = func(responsiveness)
 
         if query_df.empty:
-            output_string += "No " + responsiveness + " orders are prioritized " + query + " than " + str(self.query_input["orders_at_high_pri"][responsiveness]["pri"])
+            output_string += "No " + responsiveness + " orders are prioritized " + query + "er than " + str(self.query_input["orders_at_"+query+"_pri"][responsiveness]["pri"])
         else:
-            output_string += "These " + responsiveness + " orders are prioritized " + query + " than " + str(self.query_input["orders_at_high_pri"][responsiveness]["pri"]) + ":\n" + query_df.loc[:, self.display_columns[:-1]].to_string()
+            output_string += "These " + responsiveness + " orders are prioritized " + query + "er than " + str(self.query_input["orders_at_"+query+"_pri"][responsiveness]["pri"]) + ":\n" + query_df.loc[:, self.display_columns[:-1]].to_string()
 
         return output_string
 
@@ -252,7 +252,7 @@ class Queries():
                 output_string += "\n\n\n"
 
         # Appends middle digit text to string for each query criteria
-        for query in ["higher", "lower"]:
+        for query in ["high", "low"]:
             for responsiveness in ['None', 'Select', 'SelectPlus', 'SOOPremium']:
                 output_string += self.high_low_queries_string(query, responsiveness)
                 output_string += "\n\n\n"
