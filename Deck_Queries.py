@@ -17,6 +17,17 @@
 # + Add order description and PO and $/sqkm to the output
 # + Create exception for the Babylon Vivid project
 
+# 12/6 To Do:
+# - Verify 71661 is a normal customer
+# + Add DAF04 pri 695 to the ignore list
+# - Exclude cust 3 from external orders list
+# - Are Mark Andel orders auto prioritized by the pri script? What does Mark enter them at?
+# - Who ingests the cust 252 orders? Do we repri them?
+# - Add DAF63 (100252) 700 to the ignore list
+# - What is FirstLook (251) prioritized at?
+# - Create query for any responsiveness below 690
+
+
 import arcpy
 import pandas as pd
 import json
@@ -55,9 +66,9 @@ class Queries():
         self.active_orders = active_orders_ufp
         self.clean_dataframe()
 
+
         # Get a list of SOLIs from the hotlist dataframe
         self.hotlist_SOLIs = hotlist_orders.soli.tolist()
-
         self.populate_new_priority()
         self.high_pri_query('None')
         self.ending_digit_dataframe = self.ending_digit_query()
@@ -77,7 +88,8 @@ class Queries():
 
         # Remove unwanted tasking priority and customer combinations
         for key in self.query_input["customer_pri_combo_to_ignore"]:
-            self.active_orders = self.active_orders[(self.active_orders.sap_customer_identifier != key) & (self.active_orders.tasking_priority != self.query_input["customer_pri_combo_to_ignore"][key])]
+            indexes_to_drop = self.active_orders[(self.active_orders.sap_customer_identifier == key) & (self.active_orders.tasking_priority == self.query_input["customer_pri_combo_to_ignore"][key])].index
+            self.active_orders.drop(indexes_to_drop, inplace=True)
 
     def populate_new_priority(self):
         """ Populates the given row with a new priority with the correct ending digit (to be used in the apply function for a given query) """
@@ -177,7 +189,7 @@ class Queries():
         """ Returns a dataframe of orders of the given responsiveness that are above the appropriate priority """
 
         # Returns a slice of the active orders that are:
-            #  1) the given responsivnes
+            #  1) the given responsiveness
             #  2) at a priority higher than the threshold and
             #  3) not in the excluded orders list
         return self.active_orders[
@@ -205,8 +217,10 @@ class Queries():
         query_df = func(responsiveness)
 
         if query_df.empty:
+            # Create a string stating that there were no orders found for this query
             output_string += "No " + responsiveness + " orders are prioritized " + query + "er than " + str(self.query_input["orders_at_"+query+"_pri"][responsiveness]["pri"])
         else:
+            # Create a string of the appropriate heading as well as the dataframe with only the desired columns listed (suggested priority is omited)
             output_string += "These " + responsiveness + " orders are prioritized " + query + "er than " + str(self.query_input["orders_at_"+query+"_pri"][responsiveness]["pri"]) + ":\n" + query_df.loc[:, self.display_columns[:-1]].to_string()
 
         return output_string
@@ -217,10 +231,10 @@ class Queries():
         output_string = ""
 
         if type == "has":
-            # Find the slice of the dataframe where the current priority ends in the given digit
+            # Find the slice of the dataframe where the CURRENT priority ends in the given digit
             result = self.ending_digit_dataframe[self.ending_digit_dataframe.tasking_priority % 10 == digit].sort_values(by="sap_customer_identifier")
             
-            # If the dataframe is not empty display it for orders that should have the given digit
+            # If the dataframe is not empty then display it for orders that SHOULD have the given digit
             if result.empty:
                 output_string += "No orders found with an erroneous ending digit of " + str(digit)
             else:
@@ -228,10 +242,10 @@ class Queries():
                 output_string += result.loc[:, self.display_columns].to_string()
 
         elif type == "has_not":
-            # Find the slice of the dataframe where the suggested priority end in the given digit
+            # Find the slice of the dataframe where the SUGGESTED priority ends in the given digit
             result = self.ending_digit_dataframe[self.ending_digit_dataframe[self.new_pri_field_name] % 10 == digit].sort_values(by="sap_customer_identifier")
 
-            # If the dataframe is not empty display it for orders that should not have the given digit
+            # If the dataframe is not empty then display it for orders that SHOULD NOT have the given digit
             if result.empty:
                 output_string += "No orders need to be changed to have an ending digit of " + str(digit)
             else:
