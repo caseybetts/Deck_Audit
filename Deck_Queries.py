@@ -5,11 +5,11 @@
 # + Remove EUSI from the zero dollar list
 # + Exclude all SOOPremium from last digit check
 # + Check for SOOPremium low pri
-# - What do DAF10 (35915) and DAF32 (58480) come in at?
+# + What do DAF10 (35915) and DAF32 (58480) come in at? DAFDAF32 come in at 700 and is repried by the team
 # + Add DAF75 to IDI customer list
-# - Investigate what project is cust 3 pri 784?
+# + Investigate what project is cust 3 pri 784? Sales orders, can treat as external
 # + Change cust 141 to calibration list
-# - Investigate what customer is 252? And do we need to differentiate from external orders?
+# + Investigate what customer is 252? And do we need to differentiate from external orders? No we can treat as external
 # + Add pri cutoff to output
 # + Exclude all IDI from the Spec prioritized too high query
 # + Look for any external orders above 800
@@ -18,14 +18,16 @@
 # + Create exception for the Babylon Vivid project
 
 # 12/6 To Do:
-# - Verify 71661 is a normal customer
+# + Verify 71661 is a normal customer
 # + Add DAF04 pri 695 to the ignore list
-# - Exclude cust 3 from external orders list
+# + Exclude cust 3 from internal orders list
 # - Are Mark Andel orders auto prioritized by the pri script? What does Mark enter them at?
 # - Who ingests the cust 252 orders? Do we repri them?
-# - Add DAF63 (100252) 700 to the ignore list
+# + Add DAF63 (100252) 700 to the ignore list
 # - What is FirstLook (251) prioritized at?
 # - Create query for any responsiveness below 690
+# + Ignore 58480 pri 700
+# + Move cust 252 from the internal
 
 
 import arcpy
@@ -33,8 +35,6 @@ import pandas as pd
 import json
 from math import floor 
 from pathlib import Path
-
-#path = r"C:\Users\ca003927\Music\Git\Deck_Audit"
 
 class Queries():
     """ Contains the qureie and output functions needed for the deck audit """
@@ -58,6 +58,8 @@ class Queries():
         self.arc_map_name = parameters["arc_map_name"]
         self.excluded_priorities = parameters["excluded_priorities"]
         self.descriptions = list(self.query_input["project_descriptions"].keys())
+        self.purchase_orders = list(self.query_input["project_purchase_orders"].keys())
+        arcpy.AddMessage(self.purchase_orders)
 
         # Create empty dataframe to contain all results
         self.resulting_dataframe = pd.DataFrame()
@@ -99,18 +101,25 @@ class Queries():
 
         # Populate order priorities base on project
         self.active_orders[self.new_pri_field_name] = self.active_orders.apply(lambda x: self.description_priority(x[self.new_pri_field_name], x.order_description), axis=1)
+        self.active_orders[self.new_pri_field_name] = self.active_orders.apply(lambda x: self.po_priority(x[self.new_pri_field_name], x.purchase_order_header), axis=1)
 
     def description_priority(self, current_pri, description):
         """ Returns a priority according to the order's description """
 
         if description in self.descriptions:
 
-            # Identify specific description
-            for i in range(len(self.descriptions)):
+            return self.query_input["project_descriptions"][description]
+        
+        else:
+            return current_pri
+        
+    def po_priority(self, current_pri, purchase_order):
+        """ Returns a priority according to the order's purchase_order """
 
-                # Return the priority for the matching description
-                if description == self.descriptions[i]:
-                        return self.query_input["project_descriptions"][description]
+        if purchase_order in self.purchase_orders:
+
+            return self.query_input["project_purchase_orders"][purchase_order]
+        
         else:
             return current_pri
     
@@ -216,12 +225,15 @@ class Queries():
         
         query_df = func(responsiveness)
 
+        if responsiveness == "None": responsiveness_text = "Spec"
+        else: responsiveness_text = responsiveness
+
         if query_df.empty:
             # Create a string stating that there were no orders found for this query
-            output_string += "No " + responsiveness + " orders are prioritized " + query + "er than " + str(self.query_input["orders_at_"+query+"_pri"][responsiveness]["pri"])
+            output_string += "No " + responsiveness_text + " orders are prioritized " + query + "er than " + str(self.query_input["orders_at_"+query+"_pri"][responsiveness]["pri"])
         else:
             # Create a string of the appropriate heading as well as the dataframe with only the desired columns listed (suggested priority is omited)
-            output_string += "These " + responsiveness + " orders are prioritized " + query + "er than " + str(self.query_input["orders_at_"+query+"_pri"][responsiveness]["pri"]) + ":\n" + query_df.loc[:, self.display_columns[:-1]].to_string()
+            output_string += "These " + responsiveness_text + " orders are prioritized " + query + "er than " + str(self.query_input["orders_at_"+query+"_pri"][responsiveness]["pri"]) + ":\n" + query_df.loc[:, self.display_columns[:-1]].to_string()
 
         return output_string
 
