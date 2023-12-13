@@ -22,10 +22,10 @@
 # + Add DAF04 pri 695 to the ignore list
 # + Exclude cust 3 from internal orders list
 # - Are Mark Andel orders auto prioritized by the pri script? What does Mark enter them at?
-# - Who ingests the cust 252 orders? Do we repri them?
+# + Who ingests the cust 252 orders? Do we repri them?
 # + Add DAF63 (100252) 700 to the ignore list
 # - What is FirstLook (251) prioritized at?
-# - Create query for any responsiveness below 690
+# + Create query for any responsiveness below 690 - middle digit queries will do this
 # + Ignore 58480 pri 700
 # + Move cust 252 from the internal
 
@@ -57,6 +57,9 @@ class Queries():
         self.query_input = parameters["query_inputs"]
         self.arc_map_name = parameters["arc_map_name"]
         self.excluded_priorities = parameters["excluded_priorities"]
+        self.customer_info = parameters["customer_info"]
+        self.idi_cust_ids = list(self.customer_info["idi_customers"].keys())
+        self.internal_cust_ids = list(self.customer_info["internal_customers"].keys())
         self.descriptions = list(self.query_input["project_descriptions"].keys())
         self.purchase_orders = list(self.query_input["project_purchase_orders"].keys())
         arcpy.AddMessage(self.purchase_orders)
@@ -72,6 +75,7 @@ class Queries():
         # Get a list of SOLIs from the hotlist dataframe
         self.hotlist_SOLIs = hotlist_orders.soli.tolist()
         self.populate_new_priority()
+        self.populate_customer_name()
         self.high_pri_query('None')
         self.ending_digit_dataframe = self.ending_digit_query()
         self.output()
@@ -82,8 +86,9 @@ class Queries():
         # Remove unnecessary columns
         self.active_orders.drop(labels=self.columns_to_drop, axis=1, inplace=True)
 
-        # Add column for the new priority
+        # Add column for customer name and the new priority
         self.active_orders[self.new_pri_field_name] = 0
+        self.active_orders["Customer_Name"] = "--"
 
         # Remove unwanted tasking priorities
         self.active_orders = self.active_orders[~self.active_orders.tasking_priority.isin(self.excluded_priorities)]
@@ -92,6 +97,21 @@ class Queries():
         for key in self.query_input["customer_pri_combo_to_ignore"]:
             indexes_to_drop = self.active_orders[(self.active_orders.sap_customer_identifier == key) & (self.active_orders.tasking_priority == self.query_input["customer_pri_combo_to_ignore"][key])].index
             self.active_orders.drop(indexes_to_drop, inplace=True)
+
+    def populate_customer_name(self):
+        """ Populates the Customer_Name field with the name associated with the customer number if it exists """
+
+        self.active_orders["Customer_Name"] = self.active_orders.apply(lambda x: self.customer_name(x.sap_customer_identifier), axis=1)
+
+    def customer_name(self, cust):
+        """ Returns the customer name given the customer number """ 
+
+        if cust in self.idi_cust_ids:
+            return self.customer_info["idi_customers"][cust]
+        elif cust in self.internal_cust_ids:
+            return self.customer_info["internal_customers"][cust]
+        else:
+            return "--"
 
     def populate_new_priority(self):
         """ Populates the given row with a new priority with the correct ending digit (to be used in the apply function for a given query) """
