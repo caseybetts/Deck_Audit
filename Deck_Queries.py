@@ -1,45 +1,18 @@
 # Author: Casey Betts, 2023
 # This file contains the queries used to interrogate the tasking deck and output information on misprioritized orders
 
-# To Do:
-# + Remove EUSI from the zero dollar list
-# + Exclude all SOOPremium from last digit check
-# + Check for SOOPremium low pri
-# + What do DAF10 (35915) and DAF32 (58480) come in at? DAFDAF32 come in at 700 and is repried by the team
-# + Add DAF75 to IDI customer list
-# + Investigate what project is cust 3 pri 784? Sales orders, can treat as external
-# + Change cust 141 to calibration list
-# + Investigate what customer is 252? And do we need to differentiate from external orders? No we can treat as external
-# + Add pri cutoff to output
-# + Exclude all IDI from the Spec prioritized too high query
-# + Look for any external orders above 800
-# + Omit Eastern Australia Project based on cust number and pri
-# + Add order description and PO and $/sqkm to the output
-# + Create exception for the Babylon Vivid project
-
-# 12/6 To Do:
-# + Verify 71661 is a normal customer
-# + Add DAF04 pri 695 to the ignore list
-# + Exclude cust 3 from internal orders list
-# - Are Mark Andel orders auto prioritized by the pri script? What does Mark enter them at?
-# + Who ingests the cust 252 orders? Do we repri them?
-# + Add DAF63 (100252) 700 to the ignore list
-# - What is FirstLook (251) prioritized at?
-# + Create query for any responsiveness below 690 - middle digit queries will do this
-# + Ignore 58480 pri 700
-# + Move cust 252 from the internal
-
-
 import arcpy
 import pandas as pd
 import json
+
+from datetime import datetime
 from math import floor 
 from pathlib import Path
 
 class Queries():
     """ Contains the qureie and output functions needed for the deck audit """
 
-    def __init__(self, active_orders_ufp, hotlist_orders, path) -> None:
+    def __init__(self, active_orders_ufp, hotlist_orders, path, username) -> None:
         """ Creates dataframe and sets varables """
 
         # Define the path to the parameters and the output
@@ -51,6 +24,7 @@ class Queries():
             parameters = json.load(input)
 
         # define parameter variables
+        self.username = username
         self.new_pri_field_name = "Suggested_Priority"
         self.display_columns = parameters["columns_to_display"] + [self.new_pri_field_name]
         self.columns_to_drop = parameters["without_shapefile"]["columns_to_drop"]
@@ -240,11 +214,14 @@ class Queries():
 
         output_string = ""
 
+        # Define which query to use
         if query == "high": func = self.high_pri_query
         else: func = self.low_pri_query
         
+        # Save the query results (dataframe) in a varable
         query_df = func(responsiveness)
 
+        # Change the display term for 'None' responseveness to 'Spec'
         if responsiveness == "None": responsiveness_text = "Spec"
         else: responsiveness_text = responsiveness
 
@@ -303,10 +280,14 @@ class Queries():
                 output_string += self.high_low_queries_string(query, responsiveness)
                 output_string += "\n\n\n"
 
+        # Create a timestamp string
+        timestamp = str(datetime.now())[:19]
+        timestamp = timestamp.replace(':','-')
+
         # Creates output file with above strings as text
-        with open(self.output_path + "\output.txt", 'w') as f:
+        with open(self.output_path + "\Text_Results_" + timestamp + " " + self.username + ".txt", 'w') as f:
             f.write(output_string)
 
         # Creates a .csv file from the dataframe of all changes needed
-        self.ending_digit_dataframe.loc[:, self.display_columns].to_csv(self.output_path + "\changes_needed.csv")
+        self.ending_digit_dataframe.loc[:, self.display_columns].to_csv(self.output_path + "\Table_Results_" + timestamp + " " + self.username + ".csv")
 
