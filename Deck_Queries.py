@@ -17,7 +17,7 @@ class Queries():
 
         # Define the path to the parameters and the output
         self.parameters_path = Path( path + r"\Local_only\Sensitive_Parameters.json")
-        self.output_path = path + r"\Local_only"
+        self.output_path = path + r"\Results"
 
         # Load .json file with parameters
         with open(self.parameters_path, 'r') as input:
@@ -36,7 +36,6 @@ class Queries():
         self.internal_cust_ids = list(self.customer_info["internal_customers"].keys())
         self.descriptions = list(self.query_input["project_descriptions"].keys())
         self.purchase_orders = list(self.query_input["project_purchase_orders"].keys())
-        arcpy.AddMessage(self.purchase_orders)
 
         # Create empty dataframe to contain all results
         self.resulting_dataframe = pd.DataFrame()
@@ -285,9 +284,9 @@ class Queries():
         timestamp = timestamp.replace(':','-')
 
         # Creates output file with above strings as text
-        with open(self.output_path + "\Text_Results_" + timestamp + " " + self.username + ".txt", 'w') as f:
+        with open(self.output_path + "\\" + self.username + " " + timestamp + " Text" + ".txt", 'w') as f:
             f.write(output_string)
 
         # Creates a .csv file from the dataframe of all changes needed
-        self.ending_digit_dataframe.loc[:, self.display_columns].to_csv(self.output_path + "\Table_Results_" + timestamp + " " + self.username + ".csv")
+        self.ending_digit_dataframe.loc[:, self.display_columns].to_csv(self.output_path + "\\" + self.username + " " + timestamp + " Table" + ".csv")
 
