@@ -17,7 +17,7 @@ class Queries():
 
         # Define the path to the parameters and the output
         self.parameters_path = Path( path + r"\Local_only\Sensitive_Parameters.json")
-        self.output_path = path + r"\Results"
+        self.output_path = path + r"\\Results"
 
         # Load .json file with parameters
         with open(self.parameters_path, 'r') as input:
@@ -284,9 +284,9 @@ class Queries():
         timestamp = timestamp.replace(':','-')
 
         # Creates output file with above strings as text
-        with open(self.output_path + "\\" + self.username + " " + timestamp + " Text" + ".txt", 'w') as f:
+        with open(self.output_path + "\\" + self.username + " " + timestamp + " Text.txt", 'w') as f:
             f.write(output_string)
 
         # Creates a .csv file from the dataframe of all changes needed
-        self.ending_digit_dataframe.loc[:, self.display_columns].to_csv(self.output_path + "\\" + self.username + " " + timestamp + " Table" + ".csv")
+        self.ending_digit_dataframe.loc[:, self.display_columns].to_csv(self.output_path + "\\" + self.username + " " + timestamp + " Table.csv")
 
