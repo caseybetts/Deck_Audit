@@ -56,6 +56,9 @@ class Queries():
     def clean_dataframe(self):
         """ Removes unnecessary fields from a given active_orders_ufp dataframe """
 
+        # Reindex the dataframe
+        self.active_orders = self.active_orders.reset_index(drop=True)
+
         # Remove unnecessary columns
         self.active_orders.drop(labels=self.columns_to_drop, axis=1, inplace=True)
 
@@ -66,10 +69,14 @@ class Queries():
         # Remove unwanted tasking priorities
         self.active_orders = self.active_orders[~self.active_orders.tasking_priority.isin(self.excluded_priorities)]
 
+        
         # Remove unwanted tasking priority and customer combinations
         for key in self.query_input["customer_pri_combo_to_ignore"]:
             indexes_to_drop = self.active_orders[(self.active_orders.sap_customer_identifier == key) & (self.active_orders.tasking_priority == self.query_input["customer_pri_combo_to_ignore"][key])].index
+            arcpy.AddMessage("Customer: " + key)
+            arcpy.AddMessage(indexes_to_drop)
             self.active_orders.drop(indexes_to_drop, inplace=True)
+            # arcpy.AddMessage(self.active_orders.iloc[indexes_to_drop,:])
 
     def populate_customer_name(self):
         """ Populates the Customer_Name field with the name associated with the customer number if it exists """
