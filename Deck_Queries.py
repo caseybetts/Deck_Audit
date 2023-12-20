@@ -71,12 +71,12 @@ class Queries():
 
         
         # Remove unwanted tasking priority and customer combinations
-        for key in self.query_input["customer_pri_combo_to_ignore"]:
-            indexes_to_drop = self.active_orders[(self.active_orders.sap_customer_identifier == key) & (self.active_orders.tasking_priority == self.query_input["customer_pri_combo_to_ignore"][key])].index
-            arcpy.AddMessage("Customer: " + key)
-            arcpy.AddMessage(indexes_to_drop)
-            self.active_orders.drop(indexes_to_drop, inplace=True)
-            # arcpy.AddMessage(self.active_orders.iloc[indexes_to_drop,:])
+        for cust in self.query_input["customer_pri_combo_to_ignore"]:
+            
+            for pri in self.query_input["customer_pri_combo_to_ignore"][cust]:
+
+                indexes_to_drop = self.active_orders[(self.active_orders.sap_customer_identifier == cust) & (self.active_orders.tasking_priority == pri)].index
+                self.active_orders.drop(indexes_to_drop, inplace=True)
 
     def populate_customer_name(self):
         """ Populates the Customer_Name field with the name associated with the customer number if it exists """
@@ -210,7 +210,7 @@ class Queries():
         """ For the given digit this will find all orders that do not have that digit and populate the new_pri column with the suggested priority """
 
         # Define dataframe that has a different suggested ending digit than the actual ending digit
-        ending_digit_df = self.active_orders[(self.active_orders.tasking_priority % 10) != (self.active_orders[self.new_pri_field_name] % 10)]
+        ending_digit_df = self.active_orders[(self.active_orders.tasking_priority) != (self.active_orders[self.new_pri_field_name])]
 
         # Return dataframe without any SOOPremium responsiveness
         return ending_digit_df[ending_digit_df.responsiveness_level != 'SOOPremium']
@@ -295,5 +295,5 @@ class Queries():
             f.write(output_string)
 
         # Creates a .csv file from the dataframe of all changes needed
-        self.ending_digit_dataframe.loc[:, self.display_columns].to_csv(self.output_path + "\\" + self.username + " " + timestamp + " Table.csv")
+        self.ending_digit_dataframe.loc[:, self.display_columns].sort_values(by="sap_customer_identifier").to_csv(self.output_path + "\\" + self.username + " " + timestamp + " Table.csv")
 
