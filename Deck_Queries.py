@@ -49,7 +49,6 @@ class Queries():
         self.hotlist_SOLIs = hotlist_orders.soli.tolist()
         self.populate_new_priority()
         self.populate_customer_name()
-        self.high_pri_query('None')
         self.ending_digit_dataframe = self.ending_digit_query()
         self.output()
 
@@ -61,6 +60,9 @@ class Queries():
 
         # Remove unnecessary columns
         self.active_orders.drop(labels=self.columns_to_drop, axis=1, inplace=True)
+
+        # Change the tasking priority column to integer type
+        self.active_orders = self.active_orders.astype({"tasking_priority": int}, copy=False)
 
         # Add column for customer name and the new priority
         self.active_orders[self.new_pri_field_name] = 0
@@ -187,9 +189,8 @@ class Queries():
                             ].sort_values(by="sap_customer_identifier")
         
 
-        # For Spec and Select queries, drop any hotlist or IDI orders
-        if responsiveness == "None" or responsiveness == "Select":
-            high_pri_orders = high_pri_orders[~high_pri_orders.external_id.isin(self.hotlist_SOLIs) &
+        # Drop any hotlist or IDI orders
+        high_pri_orders = high_pri_orders[~high_pri_orders.external_id.isin(self.hotlist_SOLIs) &
                                               (~self.active_orders.sap_customer_identifier.isin(self.query_input["ending_digit_cust_list"]["1"]))]
 
         return high_pri_orders
@@ -201,10 +202,22 @@ class Queries():
             #  1) the given responsiveness
             #  2) at a priority higher than the threshold and
             #  3) not in the excluded orders list
-        return self.active_orders[
-                    (self.active_orders.responsiveness_level == responsiveness) & 
-                    (self.active_orders.tasking_priority > self.query_input["orders_at_low_pri"][responsiveness]["pri"]) & 
-                    (~self.active_orders.sap_customer_identifier.isin(self.query_input["orders_at_low_pri"][responsiveness]["excluded_cust"]))].sort_values(by="sap_customer_identifier")
+        low_pri_orders = self.active_orders[
+                            (self.active_orders.responsiveness_level == responsiveness) & 
+                            (self.active_orders.tasking_priority > self.query_input["orders_at_low_pri"][responsiveness]["pri"]) & 
+                            (~self.active_orders.sap_customer_identifier.isin(self.query_input["orders_at_low_pri"][responsiveness]["excluded_cust"]))].sort_values(by="sap_customer_identifier")
+
+        # Remove any orders that are specifically set to a middle digit by customer
+        for middle_digit in self.query_input["middle_digit_cust_list"]:
+                
+                pri_list = [(700 + 10 * int(middle_digit) + x) for x in [1,2,3,4,5,6,7,8,9]]
+
+                low_pri_orders = low_pri_orders[
+                                    ~(low_pri_orders.sap_customer_identifier.isin(self.query_input["middle_digit_cust_list"][middle_digit]) & 
+                                        low_pri_orders.tasking_priority.isin(pri_list) )]
+                
+        return low_pri_orders
+
 
     def ending_digit_query(self):
         """ For the given digit this will find all orders that do not have that digit and populate the new_pri column with the suggested priority """
@@ -218,7 +231,7 @@ class Queries():
     def high_low_queries_string(self, query, responsiveness):
         """ Runs either a 'too high' or 'too low' query for the given responsiveness and returns a string of the results """ 
 
-        output_string = ""
+        output_string = "" + "Hotlist and IDI orders are excluded from the \"high pri\" results\n\n"
 
         # Define which query to use
         if query == "high": func = self.high_pri_query
@@ -275,10 +288,10 @@ class Queries():
         output_string = ""
 
         # Appends ending digit text to string for each ending digit
-        for digit in range(1,10):
-            for type in ["has", "has_not"]:
-                output_string +=  self.ending_digit_query_string(digit, type)
-                output_string += "\n\n\n"
+        # for digit in range(1,10):
+        #     for type in ["has", "has_not"]:
+        #         output_string +=  self.ending_digit_query_string(digit, type)
+        #         output_string += "\n\n\n"
 
         # Appends middle digit text to string for each query criteria
         for query in ["high", "low"]:
