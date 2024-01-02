@@ -44,7 +44,6 @@ class Queries():
         self.active_orders = active_orders_ufp
         self.clean_dataframe()
 
-
         # Get a list of SOLIs from the hotlist dataframe
         self.hotlist_SOLIs = hotlist_orders.soli.tolist()
         self.populate_new_priority()
@@ -188,10 +187,13 @@ class Queries():
                             (~self.active_orders.sap_customer_identifier.isin(self.query_input["orders_at_high_pri"][responsiveness]["excluded_cust"]))
                             ].sort_values(by="sap_customer_identifier")
         
-
         # Drop any hotlist or IDI orders
         high_pri_orders = high_pri_orders[~high_pri_orders.external_id.isin(self.hotlist_SOLIs) &
                                               (~self.active_orders.sap_customer_identifier.isin(self.query_input["ending_digit_cust_list"]["1"]))]
+        
+        # Drop any orders prioritized based on PO or order description
+        high_pri_orders = high_pri_orders[~high_pri_orders.purchase_order_header.isin(self.purchase_orders)]
+        high_pri_orders = high_pri_orders[~high_pri_orders.order_description.isin(self.descriptions)]
 
         return high_pri_orders
 
@@ -216,8 +218,11 @@ class Queries():
                                     ~(low_pri_orders.sap_customer_identifier.isin(self.query_input["middle_digit_cust_list"][middle_digit]) & 
                                         low_pri_orders.tasking_priority.isin(pri_list) )]
                 
+        # Drop any orders prioritized based on PO or order description
+        low_pri_orders = low_pri_orders[~low_pri_orders.purchase_order_header.isin(self.purchase_orders)]
+        low_pri_orders = low_pri_orders[~low_pri_orders.order_description.isin(self.descriptions)]
+                
         return low_pri_orders
-
 
     def ending_digit_query(self):
         """ For the given digit this will find all orders that do not have that digit and populate the new_pri column with the suggested priority """
