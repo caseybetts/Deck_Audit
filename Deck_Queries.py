@@ -231,10 +231,13 @@ class Queries():
     def high_low_queries_string(self, query, responsiveness):
         """ Runs either a 'too high' or 'too low' query for the given responsiveness and returns a string of the results """ 
 
-        output_string = "" + "Hotlist and IDI orders are excluded from the \"high pri\" results\n\n"
+        output_string = ""
 
         # Define which query to use
-        if query == "high": func = self.high_pri_query
+        if query == "high": 
+            func = self.high_pri_query
+            output_string = "Hotlist and IDI orders are excluded from the \"high pri\" results\n\n"
+
         else: func = self.low_pri_query
         
         # Save the query results (dataframe) in a varable
