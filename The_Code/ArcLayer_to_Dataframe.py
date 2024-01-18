@@ -30,20 +30,24 @@ def create_dataframe(layer_name):
 
     return df
 
-def create_dataframe_from_param(layer_path):
-    """ Searches the map contents for the given layer and returns a dataframe from it """
+def find_layer(nameString):
+    """ Returns the layer with the given namestring """
+
+    arcpy.AddMessage("Looking for: " + nameString)
 
     # Set variables to current project and map
     aprx = arcpy.mp.ArcGISProject("current")
     map = aprx.activeMap
-    
-    # Search layers for the active orders
+
     for layer in map.listLayers():
 
-        if layer.isFeatureLayer:
+        if arcpy.Describe(layer).nameString == nameString:
+            return layer
+    
+    arcpy.AddMessage("Could not find " + nameString)
 
-            if arcpy.Describe(layer).catalogPath == layer_path:
-                break
+def create_dataframe_from_param(layer):
+    """ Searches the map contents for the given layer and returns a dataframe from it """
 
     # Read the geo database table into pandas dataframe
     fields = [f.name for f in arcpy.ListFields(layer)]
