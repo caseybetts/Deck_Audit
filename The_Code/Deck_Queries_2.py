@@ -36,6 +36,7 @@ class Queries():
         self.internal_cust_ids = list(self.customer_info["internal_customers"].keys())
         self.descriptions = list(self.query_input["project_descriptions"].keys())
         self.purchase_orders = list(self.query_input["project_purchase_orders"].keys())
+        self.select_high_dollar = parameters["select_high_dollar_value"]
 
         # Create empty dataframe to contain all results
         self.resulting_dataframe = pd.DataFrame()
@@ -195,6 +196,9 @@ class Queries():
         high_pri_orders = high_pri_orders[~high_pri_orders.purchase_order_header.isin(self.purchase_orders)]
         high_pri_orders = high_pri_orders[~high_pri_orders.order_description.isin(self.descriptions)]
 
+        # Drop any high dollar Select orders
+        high_pri_orders = high_pri_orders[~(high_pri_orders.price_per_area > self.select_high_dollar) ]
+
         return high_pri_orders
 
     def low_pri_query(self, responsiveness):
@@ -294,12 +298,6 @@ class Queries():
         """ Creates a text file with the desired info """
 
         output_string = ""
-
-        # Appends ending digit text to string for each ending digit
-        # for digit in range(1,10):
-        #     for type in ["has", "has_not"]:
-        #         output_string +=  self.ending_digit_query_string(digit, type)
-        #         output_string += "\n\n\n"
 
         # Appends middle digit text to string for each query criteria
         for query in ["high", "low"]:
