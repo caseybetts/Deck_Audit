@@ -52,6 +52,8 @@ def create_dataframe_from_param(layer):
     # Read the geo database table into pandas dataframe
     fields = [f.name for f in arcpy.ListFields(layer)]
 
+    arcpy.AddMessage(str(fields))
+
     with arcpy.da.SearchCursor(layer, fields) as cursor:
         df = pd.DataFrame(list(cursor), columns=fields)
 

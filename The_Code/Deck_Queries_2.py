@@ -20,20 +20,21 @@ class Queries():
         self.output_path = path + r"\Results"
 
         # Load .json file with parameters
-        with open(self.parameters_path, 'r') as input:
+        with open(self.parameters_path, 'r', errors="ignore") as input:
             parameters = json.load(input)
 
         # define parameter variables
         self.username = username
         self.new_pri_field_name = "Suggested_Priority"
         self.display_columns = parameters["columns_to_display"] + [self.new_pri_field_name]
-        self.columns_to_drop = parameters["without_shapefile"]["columns_to_drop"]
+        self.columns_to_drop = parameters["columns_to_drop"]
         self.query_input = parameters["query_inputs"]
         self.arc_map_name = parameters["arc_map_name"]
         self.excluded_priorities = parameters["excluded_priorities"]
         self.customer_info = parameters["customer_info"]
         self.idi_cust_ids = list(self.customer_info["idi_customers"].keys())
         self.internal_cust_ids = list(self.customer_info["internal_customers"].keys())
+        self.external_cust_ids = list(self.customer_info["external_customers"].keys())
         self.descriptions = list(self.query_input["project_descriptions"].keys())
         self.purchase_orders = list(self.query_input["project_purchase_orders"].keys())
         self.select_high_dollar = parameters["select_high_dollar_value"]
@@ -92,6 +93,8 @@ class Queries():
             return self.customer_info["idi_customers"][cust]
         elif cust in self.internal_cust_ids:
             return self.customer_info["internal_customers"][cust]
+        elif cust in self.external_cust_ids:
+            return self.customer_info["external_customers"][cust]
         else:
             return "--"
 
