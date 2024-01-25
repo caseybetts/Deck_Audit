@@ -49,7 +49,6 @@ class Queries():
         # Get a list of SOLIs from the hotlist dataframe
         self.hotlist_SOLIs = hotlist_orders.soli.tolist()
         self.populate_new_priority()
-        self.populate_customer_name()
         self.ending_digit_dataframe = self.ending_digit_query()
         self.output()
 
@@ -81,10 +80,6 @@ class Queries():
                 indexes_to_drop = self.active_orders[(self.active_orders.sap_customer_identifier == cust) & (self.active_orders.tasking_priority == pri)].index
                 self.active_orders.drop(indexes_to_drop, inplace=True)
 
-    def populate_customer_name(self):
-        """ Populates the Customer_Name field with the name associated with the customer number if it exists """
-
-        self.active_orders["Customer_Name"] = self.active_orders.apply(lambda x: self.customer_name(x.sap_customer_identifier), axis=1)
 
     def customer_name(self, cust):
         """ Returns the customer name given the customer number """ 
@@ -200,7 +195,11 @@ class Queries():
         high_pri_orders = high_pri_orders[~high_pri_orders.order_description.isin(self.descriptions)]
 
         # Drop any high dollar Select orders
-        high_pri_orders = high_pri_orders[~(high_pri_orders.price_per_area > self.select_high_dollar) ]
+        high_pri_orders = high_pri_orders[~(high_pri_orders.price_per_area > self.select_high_dollar) ]        
+
+        # Add customer names
+        if not high_pri_orders.empty:
+            high_pri_orders["Customer_Name"] = high_pri_orders.apply(lambda x: self.customer_name(x.sap_customer_identifier), axis=1)
 
         return high_pri_orders
 
@@ -228,7 +227,11 @@ class Queries():
         # Drop any orders prioritized based on PO or order description
         low_pri_orders = low_pri_orders[~low_pri_orders.purchase_order_header.isin(self.purchase_orders)]
         low_pri_orders = low_pri_orders[~low_pri_orders.order_description.isin(self.descriptions)]
-                
+
+        # Add customer names
+        if not low_pri_orders.empty:
+            low_pri_orders["Customer_Name"] = low_pri_orders.apply(lambda x: self.customer_name(x.sap_customer_identifier), axis=1)
+
         return low_pri_orders
 
     def ending_digit_query(self):
@@ -236,6 +239,10 @@ class Queries():
 
         # Define dataframe that has a different suggested ending digit than the actual ending digit
         ending_digit_df = self.active_orders[(self.active_orders.tasking_priority) != (self.active_orders[self.new_pri_field_name])]
+
+       # Add customer names
+        if not ending_digit_df.empty:
+            ending_digit_df["Customer_Name"] = ending_digit_df.apply(lambda x: self.customer_name(x.sap_customer_identifier), axis=1)
 
         # Return dataframe without any SOOPremium responsiveness
         return ending_digit_df[ending_digit_df.responsiveness_level != 'SOOPremium']
