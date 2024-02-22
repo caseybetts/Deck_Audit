@@ -35,8 +35,10 @@ class Queries():
         self.idi_cust_ids = list(self.customer_info["idi_customers"].keys())
         self.internal_cust_ids = list(self.customer_info["internal_customers"].keys())
         self.external_cust_ids = list(self.customer_info["external_customers"].keys())
-        self.descriptions = list(self.query_input["project_descriptions"].keys())
-        self.purchase_orders = list(self.query_input["project_purchase_orders"].keys())
+        self.full_descriptions = list(self.query_input["project_full_descriptions"].keys())
+        self.partial_descriptions = list(self.query_input["project_partial_descriptions"].keys()) 
+        self.full_purchase_orders = list(self.query_input["project_full_purchase_orders"].keys())
+        self.partial_purchase_orders = list(self.query_input["project_partial_purchase_orders"].keys()) 
         self.select_high_dollar = parameters["select_high_dollar_value"]
 
         # Create empty dataframe to contain all results
@@ -99,29 +101,23 @@ class Queries():
         # Populate order priorities based on customer or spacecraft
         self.active_orders[self.new_pri_field_name] = self.active_orders.apply(lambda x: self.correct_priority(x.tasking_priority, x.sap_customer_identifier, x.ge01, x.wv02, x.wv01), axis=1)
 
-        # Populate order priorities base on project
-        self.active_orders[self.new_pri_field_name] = self.active_orders.apply(lambda x: self.description_priority(x[self.new_pri_field_name], x.order_description), axis=1)
-        self.active_orders[self.new_pri_field_name] = self.active_orders.apply(lambda x: self.po_priority(x[self.new_pri_field_name], x.purchase_order_header), axis=1)
+        # Populate order priorities based on partial descriptions
+        for partial_desc in self.partial_descriptions:
+            self.active_orders.loc[self.active_orders.order_description.str.contains(partial_desc), self.new_pri_field_name] = self.query_input["project_partial_descriptions"][partial_desc]
 
-    def description_priority(self, current_pri, description):
-        """ Returns a priority according to the order's description """
+        # Populate order priorities based on partial purchase orders
+        for partial_po in self.partial_purchase_orders:
+            self.active_orders.loc[self.active_orders.purchase_order_header.str.contains(partial_po), self.new_pri_field_name] = self.query_input["project_partial_purchase_orders"][partial_po]
 
-        if description in self.descriptions:
+        # Populate order priorities base on full description
+        for full_desc in self.full_descriptions:
+            new_pri = self.query_input["project_full_descriptions"][full_desc]
+            self.active_orders.loc[self.active_orders.order_description == full_desc, self.new_pri_field_name] = new_pri
 
-            return self.query_input["project_descriptions"][description]
-        
-        else:
-            return current_pri
-        
-    def po_priority(self, current_pri, purchase_order):
-        """ Returns a priority according to the order's purchase_order """
-
-        if purchase_order in self.purchase_orders:
-
-            return self.query_input["project_purchase_orders"][purchase_order]
-        
-        else:
-            return current_pri
+        # Populate order priorities base on full purchase order
+        for full_po in self.full_purchase_orders:
+            new_pri = self.query_input["project_full_purchase_orders"][full_po]
+            self.active_orders.loc[self.active_orders.purchase_order_header == full_po, self.new_pri_field_name] = new_pri
     
     def correct_priority(self, priority, cust, ge01, wv02, wv01):
             """ Returns a priority according a 'discision tree' for the given order parameters """
@@ -182,17 +178,19 @@ class Queries():
             #  4) not in the IDI customer list
         high_pri_orders = self.active_orders[
                             (self.active_orders.responsiveness_level == responsiveness) & 
-                            (self.active_orders.tasking_priority < self.query_input["orders_at_high_pri"][responsiveness]["pri"]) & 
-                            (~self.active_orders.sap_customer_identifier.isin(self.query_input["orders_at_high_pri"][responsiveness]["excluded_cust"]))
+                            (self.active_orders.tasking_priority < self.query_input["orders_at_high_pri"][responsiveness]["pri"])
                             ].sort_values(by="sap_customer_identifier")
+        
+        # Drop any customers on the exclude list
+        high_pri_orders = high_pri_orders[~high_pri_orders.sap_customer_identifier.isin(self.query_input["orders_at_high_pri"][responsiveness]["excluded_cust"])]
         
         # Drop any hotlist or IDI orders
         high_pri_orders = high_pri_orders[~high_pri_orders.external_id.isin(self.hotlist_SOLIs) &
-                                              (~self.active_orders.sap_customer_identifier.isin(self.query_input["ending_digit_cust_list"]["1"]))]
+                                              (~high_pri_orders.sap_customer_identifier.isin(self.query_input["ending_digit_cust_list"]["1"]))]
         
         # Drop any orders prioritized based on PO or order description
-        high_pri_orders = high_pri_orders[~high_pri_orders.purchase_order_header.isin(self.purchase_orders)]
-        high_pri_orders = high_pri_orders[~high_pri_orders.order_description.isin(self.descriptions)]
+        high_pri_orders = high_pri_orders[~high_pri_orders.purchase_order_header.isin(self.full_purchase_orders)]
+        high_pri_orders = high_pri_orders[~high_pri_orders.order_description.isin(self.full_descriptions)]
 
         # Drop any high dollar Select orders
         high_pri_orders = high_pri_orders[~(high_pri_orders.price_per_area > self.select_high_dollar) ]        
@@ -212,9 +210,12 @@ class Queries():
             #  3) not in the excluded orders list
         low_pri_orders = self.active_orders[
                             (self.active_orders.responsiveness_level == responsiveness) & 
-                            (self.active_orders.tasking_priority > self.query_input["orders_at_low_pri"][responsiveness]["pri"]) & 
-                            (~self.active_orders.sap_customer_identifier.isin(self.query_input["orders_at_low_pri"][responsiveness]["excluded_cust"]))].sort_values(by="sap_customer_identifier")
-
+                            (self.active_orders.tasking_priority > self.query_input["orders_at_low_pri"][responsiveness]["pri"]) 
+                            ].sort_values(by="sap_customer_identifier")
+       
+       # Drop any customers on the exclude list
+        low_pri_orders = low_pri_orders[~low_pri_orders.sap_customer_identifier.isin(self.query_input["orders_at_low_pri"][responsiveness]["excluded_cust"])]
+        
         # Remove any orders that are specifically set to a middle digit by customer
         for middle_digit in self.query_input["middle_digit_cust_list"]:
                 
@@ -225,8 +226,8 @@ class Queries():
                                         low_pri_orders.tasking_priority.isin(pri_list) )]
                 
         # Drop any orders prioritized based on PO or order description
-        low_pri_orders = low_pri_orders[~low_pri_orders.purchase_order_header.isin(self.purchase_orders)]
-        low_pri_orders = low_pri_orders[~low_pri_orders.order_description.isin(self.descriptions)]
+        low_pri_orders = low_pri_orders[~low_pri_orders.purchase_order_header.isin(self.full_purchase_orders)]
+        low_pri_orders = low_pri_orders[~low_pri_orders.order_description.isin(self.full_descriptions)]
 
         # Add customer names
         if not low_pri_orders.empty:
