@@ -47,7 +47,7 @@ def find_layer(nameString):
     arcpy.AddMessage("Could not find " + nameString)
 
 def create_dataframe_from_param(layer):
-    """ Searches the map contents for the given layer and returns a dataframe from it """
+    """ Returns a dataframe from the given layer """
 
     # Read the geo database table into pandas dataframe
     fields = [f.name for f in arcpy.ListFields(layer)]
