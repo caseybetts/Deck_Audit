@@ -40,6 +40,7 @@ class Queries():
         self.full_purchase_orders = list(self.query_input["project_full_purchase_orders"].keys())
         self.partial_purchase_orders = list(self.query_input["project_partial_purchase_orders"].keys()) 
         self.select_high_dollar = parameters["select_high_dollar_value"]
+        self.exluded_vehicles = parameters["excluded_vehicles"]
 
         # Create empty dataframe to contain all results
         self.resulting_dataframe = pd.DataFrame()
@@ -61,7 +62,7 @@ class Queries():
         self.active_orders = self.active_orders.reset_index(drop=True)
 
         # Remove unnecessary columns
-        self.active_orders.drop(labels=self.columns_to_drop, axis=1, inplace=True)
+        self.active_orders.drop(labels=self.columns_to_drop, axis=1, inplace=True, errors='ignore')
 
         # Change the tasking priority column to integer type
         self.active_orders = self.active_orders.astype({"tasking_priority": int}, copy=False)
@@ -81,6 +82,9 @@ class Queries():
 
                 indexes_to_drop = self.active_orders[(self.active_orders.sap_customer_identifier == cust) & (self.active_orders.tasking_priority == pri)].index
                 self.active_orders.drop(indexes_to_drop, inplace=True)
+
+        # Remove Legion Spacecraft
+        self.active_orders = self.active_orders[~self.active_orders.selected_vehicles.isin(self.exluded_vehicles)]
 
 
     def customer_name(self, cust):
