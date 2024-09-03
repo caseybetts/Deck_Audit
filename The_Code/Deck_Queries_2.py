@@ -47,13 +47,14 @@ class Queries():
 
         # Initialize and clean the active orders dataframe
         self.active_orders = active_orders_ufp
-        self.clean_dataframe()
+        # self.clean_dataframe()
 
         # Get a list of SOLIs from the hotlist dataframe
-        self.hotlist_SOLIs = hotlist_orders.soli.tolist()
-        self.populate_new_priority()
-        self.ending_digit_dataframe = self.ending_digit_query()
-        self.output()
+        # self.hotlist_SOLIs = hotlist_orders.soli.tolist()
+        # self.populate_new_priority()
+        # self.ending_digit_dataframe = self.ending_digit_query()
+        # self.output()
+        self.shape_output()
 
     def clean_dataframe(self):
         """ Removes unnecessary fields from a given active_orders_ufp dataframe """
@@ -74,7 +75,6 @@ class Queries():
         # Remove unwanted tasking priorities
         self.active_orders = self.active_orders[~self.active_orders.tasking_priority.isin(self.excluded_priorities)]
 
-        
         # Remove unwanted tasking priority and customer combinations
         for cust in self.query_input["customer_pri_combo_to_ignore"]:
             
@@ -86,6 +86,8 @@ class Queries():
         # Remove Legion Spacecraft
         self.active_orders = self.active_orders[~self.active_orders.selected_vehicles.isin(self.exluded_vehicles)]
 
+        if self.active_orders.empty:
+            raise Exception("DATAFRAME EMPTY: After cleaning the dataframe there are no more orders left.")
 
     def customer_name(self, cust):
         """ Returns the customer name given the customer number """ 
@@ -127,7 +129,7 @@ class Queries():
             """ Returns a priority according a 'discision tree' for the given order parameters """
 
             # Sets the middle digit
-            if cust in self.query_input["middle_digit_cust_list"]["1"]:
+            if cust in self.query_input["middle_digit_cust_list"]["1"]: 
                 middle_digit = 1
             elif cust in self.query_input["middle_digit_cust_list"]["2"]:
                 middle_digit = 2
@@ -208,7 +210,7 @@ class Queries():
     def low_pri_query(self, responsiveness):
         """ Returns a dataframe of orders of the given responsiveness that are above the appropriate priority """
 
-        # Returns a slice of the active orders that are:
+        # Creates a slice of the active orders that are:
             #  1) the given responsiveness
             #  2) at a priority higher than the threshold and
             #  3) not in the excluded orders list
@@ -308,6 +310,24 @@ class Queries():
                 output_string += result.loc[:, self.display_columns].to_string()
 
         return output_string
+    
+    def tasking_ssr_mismatch(self):
+        " Returns a dataframe of orders where the tasking priority does not equal the SSR priority"
+
+        query_df = self.active_orders[
+                            (self.active_orders.tasking_priority != self.active_orders.ssr_priority) 
+                            ].sort_values(by="sap_customer_identifier")
+        
+        if query_df.empty:
+            # Create a string stating that there were no orders found for this query
+            output_string = "No orders found with a tasking and SSR priority mismatch"
+        else:
+            # Create a string of the appropriate heading as well as the dataframe with only the desired columns listed (suggested priority is omited)
+            output_string = "The tasking and SSR priorities of these orders do not match" + ":\n" + query_df.loc[:, self.display_columns[:-1]].to_string()
+
+        
+        return  output_string
+
                             
     def output(self):
         """ Creates a text file with the desired info """
@@ -320,6 +340,9 @@ class Queries():
                 output_string += self.high_low_queries_string(query, responsiveness)
                 output_string += "\n\n\n"
 
+        # Appends the tasking vs SSR priority results to the output string
+        output_string += self.tasking_ssr_mismatch()
+
         # Create a timestamp string
         timestamp = str(datetime.now())[:19]
         timestamp = timestamp.replace(':','-')
@@ -330,4 +353,113 @@ class Queries():
 
         # Creates a .csv file from the dataframe of all changes needed
         self.ending_digit_dataframe.loc[:, self.display_columns].sort_values(by="sap_customer_identifier").to_csv(self.output_path + "\\" + self.username + " " + timestamp + " Table.csv")
+
+    def modify_layer(self, layer_name):
+
+            # Open the code block file and save to var
+            with open('correct_priority.txt', 'r') as data:
+                correct_priorities = data.read() 
+
+            # Add column to feature class for new priority and catigory
+            field_name = "Rivedo_Pri"
+            expression = "correct_priority(!tasking_priority!, !sap_customer_identifier!, !ge01!, !wv02!, !wv01!)"
+            code_block = "query_input =" + str(self.query_input) + """
+from math import floor 
+
+def correct_priority(priority, cust, ge01, wv02, wv01):
+
+    # Sets the middle digit
+    if cust in query_input["middle_digit_cust_list"]["1"]: 
+        middle_digit = 1
+    elif cust in query_input["middle_digit_cust_list"]["2"]:
+        middle_digit = 2
+    elif cust in query_input["middle_digit_cust_list"]["3"]:
+        middle_digit = 3
+    elif cust in query_input["middle_digit_cust_list"]["4"]:
+        middle_digit = 4
+    elif cust in query_input["middle_digit_cust_list"]["5"]:
+        middle_digit = 5
+    elif cust in query_input["middle_digit_cust_list"]["6"]:
+        middle_digit = 6
+    elif cust in query_input["middle_digit_cust_list"]["7"]:
+        middle_digit = 7
+    elif cust in query_input["middle_digit_cust_list"]["8"]:
+        middle_digit = 8
+    elif cust in query_input["middle_digit_cust_list"]["9"]:
+        middle_digit = 9
+    elif cust in query_input["middle_digit_cust_list"]["0"]:
+        middle_digit = 0
+    else:
+        middle_digit = floor((priority - 700)/10)
+
+    # Sets the ending digit
+    if cust in query_input["ending_digit_cust_list"]["1"]:
+        ending_digit = 1
+    elif cust in query_input["ending_digit_cust_list"]["2"]:
+        ending_digit = 2
+    elif cust in query_input["ending_digit_cust_list"]["6"]:
+        ending_digit = 6
+    elif cust in query_input["ending_digit_cust_list"]["7"]:
+        ending_digit = 7
+    elif cust in query_input["ending_digit_cust_list"]["8"]:
+        ending_digit = 8
+    elif cust in query_input["ending_digit_cust_list"]["9"]:
+        ending_digit = 9
+    elif cust in query_input["ending_digit_cust_list"]["0"]:
+        ending_digit = 0
+    elif (ge01 == 0) and (wv02 ==0) and (wv01 == 0):
+        ending_digit = 3
+    else:
+        ending_digit = 4
+
+    return 700 + (middle_digit * 10) + ending_digit"""
+            arcpy.management.CalculateField(layer_name, field_name, expression, "PYTHON3", code_block, "LONG")
+
+            # Select the desired rows
+            where_clause = "tasking_priority = Rivedo_Pri"
+            arcpy.management.SelectLayerByAttribute(layer_name, "NEW_SELECTION", where_clause)
+            arcpy.management.DeleteFeatures(layer_name)
+
+
+    # Add given feature class to the map
+    def add_layer_to_map(self, source_layer_name, layer1):
+        """ Will add the desired layers to the map and symbolize them """
+
+        arcpy.AddMessage("Running add_layers_to_map.....\n\/")
+
+
+
+        # Get the symbology from the symbology template layer
+        # orders = map.listLayers()[0]
+
+        # for layer in map.listLayers():
+        #     if layer.name == source_layer_name:
+        #         source_layer = layer
+        #         break
+        # else:
+        #     raise Exception(f"Source layer '{source_layer_name}' not found in the TOC.")
+        
+        # # Apply the symbology to the target layer
+        # orders.symbology = source_layer.symbology
+
+        arcpy.AddMessage("Done")
+
+    def shape_output(self):
+        """Temporary function to create a feature class and add it to the map """
+
+        output_name = "Rivedo_orders"
+        output_loc = arcpy.env.workspace
+
+        # Create a feature class of the orders layer
+        arcpy.conversion.ExportFeatures(self.active_orders, output_loc + "\\" + output_name)
+
+        # Get the active map document and data frame
+        project = arcpy.mp.ArcGISProject("CURRENT")
+        map = project.activeMap
+
+        # Add the feature layer to the map
+        map.addDataFromPath(output_loc + "\\" + output_name)
+
+        self.modify_layer(output_name)
+
 
