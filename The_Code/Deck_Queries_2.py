@@ -354,66 +354,72 @@ class Queries():
         # Creates a .csv file from the dataframe of all changes needed
         self.ending_digit_dataframe.loc[:, self.display_columns].sort_values(by="sap_customer_identifier").to_csv(self.output_path + "\\" + self.username + " " + timestamp + " Table.csv")
 
+    def reorder_fields(self, input_layer, fields_to_move):
+        """
+        Reorders fields in a feature class or table by moving a specified number of fields from the end to the beginning.
+    
+        :param input_layer: String, the name of the input feature class or table
+        :param fields_to_move: Integer, the number of fields to move from the end to the beginning
+        :return: String, the name of the new feature class or table with reordered fields
+        """
+        arcpy.env.overwriteOutput = True
+
+        # Get all fields
+        fields = arcpy.ListFields(input_layer)
+        field_names = [field.name for field in fields if field.type not in ['OID', 'Geometry']]
+    
+        # Determine the new field order
+        fields_to_move = min(fields_to_move, len(field_names))  # Ensure we don't try to move more fields than exist
+        new_order = field_names[-fields_to_move:] + field_names[:-fields_to_move]
+    
+        # Create a FieldMappings object
+        field_mappings = arcpy.FieldMappings()
+        field_mappings.addTable(input_layer)
+    
+        # Create a new FieldMappings object with fields in the desired order
+        new_field_mappings = arcpy.FieldMappings()
+        for field_name in new_order:
+            field_index = field_mappings.findFieldMapIndex(field_name)
+            if field_index != -1:
+                field_map = field_mappings.getFieldMap(field_index)
+                new_field_mappings.addFieldMap(field_map)
+    
+        # Create a new feature class or table with the reordered fields
+        output_name = f"{input_layer}_reordered"
+        desc = arcpy.Describe(input_layer)
+        arcpy.FeatureClassToFeatureClass_conversion(input_layer, arcpy.env.workspace, output_name, field_mapping=new_field_mappings)
+    
+        arcpy.AddMessage(f"New layer '{output_name}' created with reordered fields.")
+        return output_name
+
     def modify_layer(self, layer_name):
 
             # Open the code block file and save to var
             with open('correct_priority.txt', 'r') as data:
                 correct_priorities = data.read() 
 
-            # Add column to feature class for new priority and catigory
+            # Add column to feature class for new priority
             field_name = "Rivedo_Pri"
             expression = "correct_priority(!tasking_priority!, !sap_customer_identifier!, !ge01!, !wv02!, !wv01!)"
-            code_block = "query_input =" + str(self.query_input) + """
-from math import floor 
-
-def correct_priority(priority, cust, ge01, wv02, wv01):
-
-    # Sets the middle digit
-    if cust in query_input["middle_digit_cust_list"]["1"]: 
-        middle_digit = 1
-    elif cust in query_input["middle_digit_cust_list"]["2"]:
-        middle_digit = 2
-    elif cust in query_input["middle_digit_cust_list"]["3"]:
-        middle_digit = 3
-    elif cust in query_input["middle_digit_cust_list"]["4"]:
-        middle_digit = 4
-    elif cust in query_input["middle_digit_cust_list"]["5"]:
-        middle_digit = 5
-    elif cust in query_input["middle_digit_cust_list"]["6"]:
-        middle_digit = 6
-    elif cust in query_input["middle_digit_cust_list"]["7"]:
-        middle_digit = 7
-    elif cust in query_input["middle_digit_cust_list"]["8"]:
-        middle_digit = 8
-    elif cust in query_input["middle_digit_cust_list"]["9"]:
-        middle_digit = 9
-    elif cust in query_input["middle_digit_cust_list"]["0"]:
-        middle_digit = 0
-    else:
-        middle_digit = floor((priority - 700)/10)
-
-    # Sets the ending digit
-    if cust in query_input["ending_digit_cust_list"]["1"]:
-        ending_digit = 1
-    elif cust in query_input["ending_digit_cust_list"]["2"]:
-        ending_digit = 2
-    elif cust in query_input["ending_digit_cust_list"]["6"]:
-        ending_digit = 6
-    elif cust in query_input["ending_digit_cust_list"]["7"]:
-        ending_digit = 7
-    elif cust in query_input["ending_digit_cust_list"]["8"]:
-        ending_digit = 8
-    elif cust in query_input["ending_digit_cust_list"]["9"]:
-        ending_digit = 9
-    elif cust in query_input["ending_digit_cust_list"]["0"]:
-        ending_digit = 0
-    elif (ge01 == 0) and (wv02 ==0) and (wv01 == 0):
-        ending_digit = 3
-    else:
-        ending_digit = 4
-
-    return 700 + (middle_digit * 10) + ending_digit"""
+            code_block = "query_input =" + str(self.query_input) + "\n" + "from math import floor" +"\n" + correct_priorities
             arcpy.management.CalculateField(layer_name, field_name, expression, "PYTHON3", code_block, "LONG")
+            
+            # Add colunm to specify if the order was caught by the ending digit query
+            field_name = "Ending Digit"
+            expression = "ending_digit(!tasking_priority!, !Rivedo_Pri!)"
+            code_block = """
+def ending_digit(tasking_priority, Rivedo_Pri):
+    if tasking_priority == Rivedo_Pri: return "N"
+    else: return "Y"
+    """
+            arcpy.management.CalculateField(layer_name, field_name, expression, "PYTHON3", code_block, "Text")
+
+            # Generate a new layer with the new columns moved to the front
+            reordered_layer = self.reorder_fields(layer_name, 2)
+
+            # Add column to specify if the order is caught by the middle digit and why
+            field_name = "Middle Digit"
+            expression = "middle_digit"
 
             # Select the desired rows
             where_clause = "tasking_priority = Rivedo_Pri"
