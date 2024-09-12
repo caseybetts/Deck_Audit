@@ -354,7 +354,7 @@ class Queries():
         # Creates a .csv file from the dataframe of all changes needed
         self.ending_digit_dataframe.loc[:, self.display_columns].sort_values(by="sap_customer_identifier").to_csv(self.output_path + "\\" + self.username + " " + timestamp + " Table.csv")
 
-    def reorder_fields(self, input_layer, fields_to_move):
+    def reorder_fields(self, input_layer, number_of_fields_to_move, output_name):
         """
         Reorders fields in a feature class or table by moving a specified number of fields from the end to the beginning.
     
@@ -369,8 +369,8 @@ class Queries():
         field_names = [field.name for field in fields if field.type not in ['OID', 'Geometry']]
     
         # Determine the new field order
-        fields_to_move = min(fields_to_move, len(field_names))  # Ensure we don't try to move more fields than exist
-        new_order = field_names[-fields_to_move:] + field_names[:-fields_to_move]
+        fields_to_move = min(number_of_fields_to_move, len(field_names))  # Ensure we don't try to move more fields than exist
+        new_order = field_names[-number_of_fields_to_move:] + field_names[:-number_of_fields_to_move]
     
         # Create a FieldMappings object
         field_mappings = arcpy.FieldMappings()
@@ -385,87 +385,115 @@ class Queries():
                 new_field_mappings.addFieldMap(field_map)
     
         # Create a new feature class or table with the reordered fields
-        output_name = f"{input_layer}_reordered"
-        desc = arcpy.Describe(input_layer)
         arcpy.FeatureClassToFeatureClass_conversion(input_layer, arcpy.env.workspace, output_name, field_mapping=new_field_mappings)
     
         arcpy.AddMessage(f"New layer '{output_name}' created with reordered fields.")
-        return output_name
 
-    def modify_layer(self, layer_name):
+    def build_feature_class(self, output_name, output_loc):
+        """
+        Creates a new feature class with the given name and location. Adds Rivedo columns.
+    
+        :param output_name: String, the name of the output feature class
+        :param output_loc: String, the location of the output feature class
+        """
 
-            # Open the code block file and save to var
-            with open('correct_priority.txt', 'r') as data:
-                correct_priorities = data.read() 
+        # Open the code block file and save to var
+        with open('correct_priority.txt', 'r') as data:
+            correct_priorities = data.read() 
 
-            # Add column to feature class for new priority
-            field_name = "Rivedo_Pri"
-            expression = "correct_priority(!tasking_priority!, !sap_customer_identifier!, !ge01!, !wv02!, !wv01!)"
-            code_block = "query_input =" + str(self.query_input) + "\n" + "from math import floor" +"\n" + correct_priorities
-            arcpy.management.CalculateField(layer_name, field_name, expression, "PYTHON3", code_block, "LONG")
-            
-            # Add colunm to specify if the order was caught by the ending digit query
-            field_name = "Ending Digit"
-            expression = "ending_digit(!tasking_priority!, !Rivedo_Pri!)"
-            code_block = """
+        rivedo_feature_class = output_loc + "\\" + output_name
+
+        # Create a feature class of the orders layer
+        arcpy.conversion.ExportFeatures(self.active_orders, rivedo_feature_class)
+
+        # Add column to feature class for new priority
+        field_name = "Rivedo_Pri"
+        expression = "correct_priority(!tasking_priority!, !sap_customer_identifier!, !ge01!, !wv02!, !wv01!)"
+        code_block = "query_input =" + str(self.query_input) + "\n" + "from math import floor" +"\n" + correct_priorities
+        arcpy.management.CalculateField(rivedo_feature_class, field_name, expression, "PYTHON3", code_block, "LONG")
+
+        # Add colunm to specify if the order was caught by the ending digit query
+        field_name = "Ending Digit"
+        expression = "ending_digit(!tasking_priority!, !Rivedo_Pri!)"
+        code_block = """
 def ending_digit(tasking_priority, Rivedo_Pri):
     if tasking_priority == Rivedo_Pri: return "N"
     else: return "Y"
-    """
-            arcpy.management.CalculateField(layer_name, field_name, expression, "PYTHON3", code_block, "Text")
+"""
+        arcpy.management.CalculateField(rivedo_feature_class, field_name, expression, "PYTHON3", code_block, "Text")
 
-            # Generate a new layer with the new columns moved to the front
-            reordered_layer = self.reorder_fields(layer_name, 2)
+        # Add column to specify if the order is caught by the middle digit and why
+        field_name = "Middle Digit"
+        expression = "middle_digit(!tasking_priority!, !sap_customer_identifier!, !responsiveness_level!)"
+        code_block = "query_input =" + str(self.query_input) + "\n" + """
+def middle_digit(priority, cust, responsiveness):
 
-            # Add column to specify if the order is caught by the middle digit and why
-            field_name = "Middle Digit"
-            expression = "middle_digit"
+    # Low priority check
+    if priority > query_input["orders_at_low_pri"][responsiveness]["pri"]:
+        if cust in query_input["orders_at_low_pri"][responsiveness]["excluded_cust"]:
+            return "Excluded"
+        else:
+            return "Low"
 
-            # Select the desired rows
-            where_clause = "tasking_priority = Rivedo_Pri"
-            arcpy.management.SelectLayerByAttribute(layer_name, "NEW_SELECTION", where_clause)
-            arcpy.management.DeleteFeatures(layer_name)
+    # High priority check
+    if priority < query_input["orders_at_high_pri"][responsiveness]["pri"]:
+        if cust in query_input["orders_at_high_pri"][responsiveness]["excluded_cust"]:
+            return "Excluded"
+        else:
+            return "Low"
 
+    return "Standard"    
+    
 
-    # Add given feature class to the map
-    def add_layer_to_map(self, source_layer_name, layer1):
-        """ Will add the desired layers to the map and symbolize them """
+"""
+        arcpy.management.CalculateField(rivedo_feature_class, field_name, expression, "PYTHON3", code_block, "Text")
+            
+    def get_layer_by_name(self, layer_name, map):
+        """
+        Returns the first layer in the TOC of the given name
+    
+        :param layer_name: String, the name of the layer to be returned
+        """
 
-        arcpy.AddMessage("Running add_layers_to_map.....\n\/")
-
-
-
-        # Get the symbology from the symbology template layer
-        # orders = map.listLayers()[0]
-
-        # for layer in map.listLayers():
-        #     if layer.name == source_layer_name:
-        #         source_layer = layer
-        #         break
-        # else:
-        #     raise Exception(f"Source layer '{source_layer_name}' not found in the TOC.")
+        # Find the layer
+        for layer in map.listLayers():
+            if layer.name == layer_name:
+                return layer
+        else:
+            raise Exception(f"Source layer '{layer_name}' not found in the TOC.")
         
-        # # Apply the symbology to the target layer
-        # orders.symbology = source_layer.symbology
-
-        arcpy.AddMessage("Done")
+        
 
     def shape_output(self):
         """Temporary function to create a feature class and add it to the map """
 
-        output_name = "Rivedo_orders"
+        temp_output = "Rivedo_temp"
+        final_output = "Rivedo_orders"
         output_loc = arcpy.env.workspace
 
-        # Create a feature class of the orders layer
-        arcpy.conversion.ExportFeatures(self.active_orders, output_loc + "\\" + output_name)
+        self.build_feature_class(temp_output, output_loc)
 
         # Get the active map document and data frame
         project = arcpy.mp.ArcGISProject("CURRENT")
         map = project.activeMap
 
         # Add the feature layer to the map
-        map.addDataFromPath(output_loc + "\\" + output_name)
+        map.addDataFromPath(output_loc + "\\" + temp_output)
 
-        self.modify_layer(output_name)
+        # Generate a new layer with the new columns moved to the front
+        self.reorder_fields(temp_output, 3, final_output)
+
+        # Add the feature layer to the map
+        map.addDataFromPath(output_loc + "\\" + final_output)
+
+        # Remove the temp layer from the map
+        map.removeLayer(self.get_layer_by_name(temp_output, map))
+
+        # Select the desired rows
+        where_clause = "tasking_priority = Rivedo_Pri"
+        arcpy.management.SelectLayerByAttribute(final_output, "NEW_SELECTION", where_clause)
+        arcpy.management.DeleteFeatures(final_output)
+
+        # self.modify_layer(output_name)
 
 
