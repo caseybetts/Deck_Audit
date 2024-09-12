@@ -366,11 +366,11 @@ class Queries():
 
         # Get all fields
         fields = arcpy.ListFields(input_layer)
-        field_names = [field.name for field in fields if field.type not in ['OID', 'Geometry']]
+        field_names = [field.name for field in fields if field.type not in ['OID', 'Geometry', 'tasking_priority']]
     
         # Determine the new field order
         fields_to_move = min(number_of_fields_to_move, len(field_names))  # Ensure we don't try to move more fields than exist
-        new_order = field_names[-number_of_fields_to_move:] + field_names[:-number_of_fields_to_move]
+        new_order = ['tasking_priority'] + field_names[-number_of_fields_to_move:] + field_names[:-number_of_fields_to_move]
     
         # Create a FieldMappings object
         field_mappings = arcpy.FieldMappings()
@@ -413,7 +413,7 @@ class Queries():
         arcpy.management.CalculateField(rivedo_feature_class, field_name, expression, "PYTHON3", code_block, "LONG")
 
         # Add colunm to specify if the order was caught by the ending digit query
-        field_name = "Ending Digit"
+        field_name = "Ending_Digit"
         expression = "ending_digit(!tasking_priority!, !Rivedo_Pri!)"
         code_block = """
 def ending_digit(tasking_priority, Rivedo_Pri):
@@ -423,7 +423,7 @@ def ending_digit(tasking_priority, Rivedo_Pri):
         arcpy.management.CalculateField(rivedo_feature_class, field_name, expression, "PYTHON3", code_block, "Text")
 
         # Add column to specify if the order is caught by the middle digit and why
-        field_name = "Middle Digit"
+        field_name = "Middle_Digit"
         expression = "middle_digit(!tasking_priority!, !sap_customer_identifier!, !responsiveness_level!)"
         code_block = "query_input =" + str(self.query_input) + "\n" + """
 def middle_digit(priority, cust, responsiveness):
@@ -440,7 +440,7 @@ def middle_digit(priority, cust, responsiveness):
         if cust in query_input["orders_at_high_pri"][responsiveness]["excluded_cust"]:
             return "Excluded"
         else:
-            return "Low"
+            return "High"
 
     return "Standard"    
     
@@ -462,8 +462,6 @@ def middle_digit(priority, cust, responsiveness):
         else:
             raise Exception(f"Source layer '{layer_name}' not found in the TOC.")
         
-        
-
     def shape_output(self):
         """Temporary function to create a feature class and add it to the map """
 
@@ -490,10 +488,13 @@ def middle_digit(priority, cust, responsiveness):
         map.removeLayer(self.get_layer_by_name(temp_output, map))
 
         # Select the desired rows
-        where_clause = "tasking_priority = Rivedo_Pri"
-        arcpy.management.SelectLayerByAttribute(final_output, "NEW_SELECTION", where_clause)
+        rivedo_where_clause = "tasking_priority <> Rivedo_Pri Or Middle_Digit = 'Low' Or Middle_Digit = 'High' "
+        arcpy.management.SelectLayerByAttribute(final_output, "NEW_SELECTION", rivedo_where_clause)
+        arcpy.management.SelectLayerByAttribute(final_output, "SWITCH_SELECTION")
+        exclusion_string = "(" + ",".join(str(num) for num in self.excluded_priorities) + ")"
+        exlusion_where_clause = "tasking_priority IN" + exclusion_string
+        arcpy.management.SelectLayerByAttribute(final_output, "ADD_TO_SELECTION", exlusion_where_clause)
         arcpy.management.DeleteFeatures(final_output)
 
-        # self.modify_layer(output_name)
 
 
