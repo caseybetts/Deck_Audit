@@ -1,0 +1,49 @@
+from math import floor
+def correct_priority(priority, cust, ge01, wv02, wv01):
+    """ Returns a priority according a 'discision tree' for the given order parameters """
+
+    # Sets the middle digit
+    if cust in query_input["middle_digit_cust_list"]["1"]: 
+        middle_digit = 1
+    elif cust in query_input["middle_digit_cust_list"]["2"]:
+        middle_digit = 2
+    elif cust in query_input["middle_digit_cust_list"]["3"]:
+        middle_digit = 3
+    elif cust in query_input["middle_digit_cust_list"]["4"]:
+        middle_digit = 4
+    elif cust in query_input["middle_digit_cust_list"]["5"]:
+        middle_digit = 5
+    elif cust in query_input["middle_digit_cust_list"]["6"]:
+        middle_digit = 6
+    elif cust in query_input["middle_digit_cust_list"]["7"]:
+        middle_digit = 7
+    elif cust in query_input["middle_digit_cust_list"]["8"]:
+        middle_digit = 8
+    elif cust in query_input["middle_digit_cust_list"]["9"]:
+        middle_digit = 9
+    elif cust in query_input["middle_digit_cust_list"]["0"]:
+        middle_digit = 0
+    else:
+        middle_digit = floor((priority - 700)/10)
+
+    # Sets the ending digit
+    if cust in query_input["ending_digit_cust_list"]["1"]:
+        ending_digit = 1
+    elif cust in query_input["ending_digit_cust_list"]["2"]:
+        ending_digit = 2
+    elif cust in query_input["ending_digit_cust_list"]["6"]:
+        ending_digit = 6
+    elif cust in query_input["ending_digit_cust_list"]["7"]:
+        ending_digit = 7
+    elif cust in query_input["ending_digit_cust_list"]["8"]:
+        ending_digit = 8
+    elif cust in query_input["ending_digit_cust_list"]["9"]:
+        ending_digit = 9
+    elif cust in query_input["ending_digit_cust_list"]["0"]:
+        ending_digit = 0
+    elif (ge01 == 0) and (wv02 ==0) and (wv01 == 0):
+        ending_digit = 3
+    else:
+        ending_digit = 4
+
+    return 700 + (middle_digit * 10) + ending_digit

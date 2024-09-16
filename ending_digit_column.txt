@@ -1,0 +1,3 @@
+def ending_digit(tasking_priority, Rivedo_Pri):
+    if tasking_priority == Rivedo_Pri: return "N"
+    else: return "Y"

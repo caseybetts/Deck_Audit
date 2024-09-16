@@ -1,0 +1,17 @@
+def middle_digit(priority, cust, responsiveness):
+
+    # Low priority check
+    if priority > query_input["orders_at_low_pri"][responsiveness]["pri"]:
+        if cust in query_input["orders_at_low_pri"][responsiveness]["excluded_cust"]:
+            return "Excluded"
+        else:
+            return "Low"
+
+    # High priority check
+    if priority < query_input["orders_at_high_pri"][responsiveness]["pri"]:
+        if cust in query_input["orders_at_high_pri"][responsiveness]["excluded_cust"]:
+            return "Excluded"
+        else:
+            return "High"
+
+    return "Standard" 
