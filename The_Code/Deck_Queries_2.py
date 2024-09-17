@@ -11,9 +11,9 @@ from pathlib import Path
 
 
 
-def reorder_fields(input_layer, number_of_fields_to_move, output_name):
+def produce_field_mapping(input_layer, number_of_fields_to_move, new_existing_field_mapping):
     """
-    Reorders fields in a feature class or table by moving a specified number of fields from the end to the beginning.
+    Creates a field mapping as input for creating a new feature class
 
     :param input_layer: String, the name of the input feature class or table
     :param fields_to_move: Integer, the number of fields to move from the end to the beginning
@@ -21,20 +21,13 @@ def reorder_fields(input_layer, number_of_fields_to_move, output_name):
     """
     arcpy.env.overwriteOutput = True
 
-    # Get all fields
+    # Get a list of all field names minus the existing ones that will be moved
     fields = arcpy.ListFields(input_layer)
-    field_names = [field.name for field in fields if field.type not in ['OID', 
-                                                                        'Geometry', 
-                                                                        'tasking_priority', 
-                                                                        'sap_customer_identifier', 
-                                                                        'responsiveness_level', 
-                                                                        'purchase_order_header', 
-                                                                        'price_per_area'
-                                                                        ]]
+    field_names = [field.name for field in fields if field.type not in ['OID', 'Geometry'] + new_existing_field_mapping]
 
     # Determine the new field order
-    fields_to_move = min(number_of_fields_to_move, len(field_names))  # Ensure we don't try to move more fields than exist
-    new_order = ['tasking_priority', 'sap_customer_identifier', 'responsiveness_level', 'purchase_order_header', 'price_per_area'] + field_names[-number_of_fields_to_move:] + field_names[:-number_of_fields_to_move]
+    number_of_fields_to_move = min(number_of_fields_to_move, len(field_names))  # Ensure we don't try to move more fields than exist
+    new_field_order = new_existing_field_mapping + field_names[-number_of_fields_to_move:] + field_names[:-number_of_fields_to_move]
 
     # Create a FieldMappings object
     field_mappings = arcpy.FieldMappings()
@@ -42,43 +35,36 @@ def reorder_fields(input_layer, number_of_fields_to_move, output_name):
 
     # Create a new FieldMappings object with fields in the desired order
     new_field_mappings = arcpy.FieldMappings()
-    for field_name in new_order:
+    for field_name in new_field_order:
         field_index = field_mappings.findFieldMapIndex(field_name)
         if field_index != -1:
             field_map = field_mappings.getFieldMap(field_index)
             new_field_mappings.addFieldMap(field_map)
 
-    # Create a new feature class or table with the reordered fields
-    arcpy.FeatureClassToFeatureClass_conversion(input_layer, arcpy.env.workspace, output_name, field_mapping=new_field_mappings)
+    return new_field_mappings
 
-    arcpy.AddMessage(f"New layer '{output_name}' created with reordered fields.")
 
-def build_feature_class(active_orders_ufp, query_input, temp_output, temp_loc, new_column_input):
+def add_columns_to_layer(feature_layer, query_input, new_column_input):
     """
-    Creates a new feature class with the given name and location. Adds Rivedo columns.
+    Adds the given columns to the given feature layer
 
-    :param output_name: String, the name of the output feature class
-    :param output_loc: String, the location of the output feature class
+    :param feature_layer: Feature Layer, the feature layer to have columns added
+    :param query_input: Dict, specs used by the column functions
+    :param new_column_input: Dict, column parameters to be used as input for the CalculateField funciton
     """
 
-    # Store the path of the new feature class
-    rivedo_feature_class = temp_loc + "\\" + temp_output
-
-    # Create a feature class of the orders layer
-    arcpy.conversion.ExportFeatures(active_orders_ufp, rivedo_feature_class)
-    
     for new_column in new_column_input:
         
         # Open the code block file and save to var
         with open(new_column_input[new_column]['column_function'], 'r') as data:
-            column_function = data.read() 
+            column_function = data.read()
 
         # Add column to feature class for new priority
         field_name = new_column_input[new_column]["field_name"]
         expression = new_column_input[new_column]["expression"]
         code_block = "query_input =" + str(query_input) + "\n" + column_function
         field_type = new_column_input[new_column]["field_type"]
-        arcpy.management.CalculateField(rivedo_feature_class, field_name, expression, "PYTHON3", code_block, field_type)
+        arcpy.management.CalculateField(feature_layer, field_name, expression, "PYTHON3", code_block, field_type)
 
         
 def get_layer_by_name(layer_name, map):
@@ -96,7 +82,7 @@ def get_layer_by_name(layer_name, map):
         raise Exception(f"Source layer '{layer_name}' not found in the TOC.")
     
     
-def shape_output(temp_output, output_loc, excluded_priorities):
+def shape_output(temp_output, output_loc, excluded_priorities, new_existing_field_mapping):
     """Temporary function to create a feature class and add it to the map """
 
     final_output = "Rivedo_orders"
@@ -109,7 +95,10 @@ def shape_output(temp_output, output_loc, excluded_priorities):
     map.addDataFromPath(output_loc + "\\" + temp_output)
 
     # Generate a new layer with the new columns moved to the front
-    reorder_fields(temp_output, 3, final_output)
+    new_field_mapping = produce_field_mapping(temp_output, 3, new_existing_field_mapping)
+
+    # Create a new feature class with the reordered fields
+    arcpy.FeatureClassToFeatureClass_conversion(temp_output, arcpy.env.workspace, final_output, field_mapping = new_field_mapping)
 
     # Add the feature layer to the map
     map.addDataFromPath(output_loc + "\\" + final_output)
@@ -136,15 +125,19 @@ def run(active_orders_ufp, path):
 
     # Load .json file with parameters
     with open(parameters_path, 'r', errors="ignore") as input:
-        parameters = json.load(input)
-
-    query_input = parameters["query_inputs"]
-    excluded_priorities = parameters["excluded_priorities"]
-    new_column_input = parameters["new_column_input"]
+        config = json.load(input)
 
     temp_output = "Rivedo_temp"
     temp_loc = arcpy.env.workspace
 
-    build_feature_class(active_orders_ufp, query_input, temp_output, temp_loc, new_column_input)
+    # Store the path of the new feature class
+    rivedo_feature_class = temp_loc + "\\" + temp_output
 
-    shape_output(temp_output, temp_loc, excluded_priorities)
+    # Create a feature class of the orders layer
+    arcpy.conversion.ExportFeatures(active_orders_ufp, rivedo_feature_class)
+
+    # Add columns to the temp feature layer
+    add_columns_to_layer(rivedo_feature_class, config["query_inputs"], config["new_column_input"])
+
+    
+    shape_output(temp_output, temp_loc, config["excluded_priorities"], config["new_existing_field_mapping"])
