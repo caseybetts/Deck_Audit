@@ -2,10 +2,10 @@
 # This file contains the queries used to interrogate the tasking deck and output information on misprioritized orders
 
 import arcpy
-# import pandas as pd
+import os
 import json
+import shutil
 
-# from datetime import datetime
 from math import floor 
 from pathlib import Path
 
@@ -43,12 +43,11 @@ def produce_field_mapping(input_layer, number_of_fields_to_move, new_existing_fi
 
     return new_field_mappings
 
-
-def add_columns_to_layer(feature_layer, query_input, new_column_input):
+def add_columns_to_feature_class(feature_class, query_input, new_column_input):
     """
     Adds the given columns to the given feature layer
 
-    :param feature_layer: Feature Layer, the feature layer to have columns added
+    :param feature_class: Feature Class, the feature class to have columns added
     :param query_input: Dict, specs used by the column functions
     :param new_column_input: Dict, column parameters to be used as input for the CalculateField funciton
     """
@@ -64,9 +63,8 @@ def add_columns_to_layer(feature_layer, query_input, new_column_input):
         expression = new_column_input[new_column]["expression"]
         code_block = "query_input =" + str(query_input) + "\n" + column_function
         field_type = new_column_input[new_column]["field_type"]
-        arcpy.management.CalculateField(feature_layer, field_name, expression, "PYTHON3", code_block, field_type)
+        arcpy.management.CalculateField(feature_class, field_name, expression, "PYTHON3", code_block, field_type)
 
-        
 def get_layer_by_name(layer_name, map):
     """
     Returns the first layer in the TOC of the given name
@@ -80,64 +78,88 @@ def get_layer_by_name(layer_name, map):
             return layer
     else:
         raise Exception(f"Source layer '{layer_name}' not found in the TOC.")
+
+def select_and_delete_rows(layer, rivedo_where_clause, excluded_priorities):
+    """ 
+    Selects and deletes rows based on a given set of criteria
     
-    
-def shape_output(temp_output, output_loc, excluded_priorities, new_existing_field_mapping):
-    """Temporary function to create a feature class and add it to the map """
-
-    final_output = "Rivedo_orders"
-
-    # Get the active map document and data frame
-    project = arcpy.mp.ArcGISProject("CURRENT")
-    map = project.activeMap
-
-    # Add the feature layer to the map
-    map.addDataFromPath(output_loc + "\\" + temp_output)
-
-    # Generate a new layer with the new columns moved to the front
-    new_field_mapping = produce_field_mapping(temp_output, 3, new_existing_field_mapping)
-
-    # Create a new feature class with the reordered fields
-    arcpy.FeatureClassToFeatureClass_conversion(temp_output, arcpy.env.workspace, final_output, field_mapping = new_field_mapping)
-
-    # Add the feature layer to the map
-    map.addDataFromPath(output_loc + "\\" + final_output)
-
-    # Remove the temp layer from the map
-    map.removeLayer(get_layer_by_name(temp_output, map))
+    :param layer: Feature Layer, the layer to be edited
+    :param excluded_priorities, List, a list of priorities to exclude
+    """
 
     # Select the desired rows
-    rivedo_where_clause = "tasking_priority <> Rivedo_Pri Or Middle_Digit = 'Low' Or Middle_Digit = 'High' "
-    arcpy.management.SelectLayerByAttribute(final_output, "NEW_SELECTION", rivedo_where_clause)
-    arcpy.management.SelectLayerByAttribute(final_output, "SWITCH_SELECTION")
+    arcpy.management.SelectLayerByAttribute(layer, "NEW_SELECTION", rivedo_where_clause)
+    arcpy.management.SelectLayerByAttribute(layer, "SWITCH_SELECTION")
     exclusion_string = "(" + ",".join(str(num) for num in excluded_priorities) + ")"
-    exlusion_where_clause = "tasking_priority IN" + exclusion_string
-    arcpy.management.SelectLayerByAttribute(final_output, "ADD_TO_SELECTION", exlusion_where_clause)
-    arcpy.management.DeleteFeatures(final_output)
+    exlusion_where_clause = "tasking_priority"[:10] + " IN " + exclusion_string
+    arcpy.management.SelectLayerByAttribute(layer, "ADD_TO_SELECTION", exlusion_where_clause)
+    arcpy.management.DeleteFeatures(layer)
 
+def delete_current_files(file_location, file_names):
+    """ Deletes out the current files in the folder """
+
+    for file in file_names:
+        file_path = os.path.join(file_location,  file)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            arcpy.AddMessage(f"Deleted: {file}")
+
+def move_new_files(staging_location, output_location):
+    """ Moves the newly generated files to the output folder """
+
+    for file in os.listdir(staging_location):
+        source_path = os.path.join(staging_location, file)
+        dest_path = os.path.join(output_location, file)
+        shutil.move(source_path, dest_path)
+        arcpy.AddMessage(f"Moved: {file}")
 
 def run(active_orders_ufp, path):
     """ This is the function called from the arc tool """
 
-    # Define the path to the parameters and the output
+    # Define the paths to the parameters and the outputs
     parameters_path = Path( path + r"\The_Code\Sensitive_Parameters.json")
-    output_path = path + r"\Shapefile"
+    temp_loc = arcpy.env.workspace
+    temp_name = "Rivedo_temp"
+    temp_feature_class = temp_loc + "\\" + temp_name
+    output_loc = path + r"\Shapefile"
+    output_name = "Rivedo_orders"
+    staging_location = os.path.join(path, "Shapefile_Staging")
 
     # Load .json file with parameters
     with open(parameters_path, 'r', errors="ignore") as input:
         config = json.load(input)
 
-    temp_output = "Rivedo_temp"
-    temp_loc = arcpy.env.workspace
+    # Generate the new field mapping
+    new_field_mapping = produce_field_mapping(temp_name, len(config["new_column_input"]), config["new_existing_field_mapping"])
 
-    # Store the path of the new feature class
-    rivedo_feature_class = temp_loc + "\\" + temp_output
+    # Set the string for the where clause that determines which rows to remove   
+    rivedo_priority = config["new_column_input"]["Rivedo_Priority"]["field_name"]
+    middle_digit = config["new_column_input"]["Middle_Digit"]["field_name"]
+    rivedo_where_clause = "tasking_priority"[:10] + f"<> {rivedo_priority} Or {middle_digit} = 'Low' Or {middle_digit} = 'High' "
 
-    # Create a feature class of the orders layer
-    arcpy.conversion.ExportFeatures(active_orders_ufp, rivedo_feature_class)
+    # Get the active map document and data frame
+    project = arcpy.mp.ArcGISProject("CURRENT")
+    map = project.activeMap
 
-    # Add columns to the temp feature layer
-    add_columns_to_layer(rivedo_feature_class, config["query_inputs"], config["new_column_input"])
+    # Create a temporary feature class of the orders layer
+    arcpy.conversion.ExportFeatures(active_orders_ufp, temp_feature_class)
 
-    
-    shape_output(temp_output, temp_loc, config["excluded_priorities"], config["new_existing_field_mapping"])
+    # Add columns to the temp feature class
+    add_columns_to_feature_class(temp_feature_class, config["query_inputs"], config["new_column_input"])
+
+    # Add the feature layer to the map
+    map.addDataFromPath(temp_feature_class)
+
+    # Create a new feature class with the reordered fields
+    arcpy.conversion.ExportFeatures(temp_name, staging_location + "\\" + output_name, field_mapping = new_field_mapping)
+
+    # Delete the existing output files
+    delete_current_files(output_loc, output_name)
+
+    # Move the produced files to the final output location
+    move_new_files(staging_location, output_loc)
+
+    # Remove the temp layer from the map
+    map.removeLayer(get_layer_by_name(temp_name, map))
+
+    select_and_delete_rows(get_layer_by_name(output_name, map), rivedo_where_clause, config["excluded_priorities"])
