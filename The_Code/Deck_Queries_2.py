@@ -6,6 +6,7 @@ import os
 import json
 import shutil
 
+from datetime import datetime
 from math import floor 
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from pathlib import Path
 class Rivedo():
     """ Object used to produce the Rivedo shapefile """
 
-    def __init__(self, active_orders_ufp, hotlist, path):
+    def __init__(self, active_orders_ufp, hotlist, path, username):
         """ Load and initiate data and vars 
         
             :param active_orders_ufp: Feature Layer, active orders ufp layer
@@ -36,6 +37,8 @@ class Rivedo():
         self.staging_location = os.path.join(path, "Shapefile_Staging")
         self.active_orders_ufp = active_orders_ufp
         self.hotlist = hotlist
+        self.row_count = 0
+        self.username = username
 
         # Produce active customer list
         self.active_cust_info = self.produce_cust_info()
@@ -227,6 +230,25 @@ class Rivedo():
         # Delete selected rows
         arcpy.management.DeleteFeatures(layer)
 
+        # Get number of rows in the layer file
+        self.row_count = arcpy.management.GetCount(layer)
+        arcpy.AddMessage("Records: " + str(self.row_count))
+
+    def log_run(self):
+        """
+        Updates a text file with details on the run
+        """
+        # Create a timestamp string
+        timestamp = str(datetime.now())[:19]
+        timestamp = timestamp.replace(':','-')
+
+        # Open text file
+        with open("Rivedo_Log.txt", "a") as log:
+            
+            # Update text file
+            log.write("\n" + self.username + "     " + timestamp + "     ")
+            log.write("Records returned: " + str(self.row_count))
+
     def run_workflow(self):
         """ This function calls all functions in the needed order to produce final output """
 
@@ -256,4 +278,8 @@ class Rivedo():
 
         # Remove the temp layer from the map
         self.map.removeLayer(self.get_layer_by_name(self.temp_name, self.map))
+
+        # Log the run
+        self.log_run()
+
 
