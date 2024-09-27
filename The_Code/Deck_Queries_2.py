@@ -39,8 +39,9 @@ class Rivedo():
         self.hotlist = hotlist
         self.row_count = 0
         self.username = username
+        self.metrics = dict()
 
-        # Produce active customer list
+        # Produce active customer dict
         self.active_cust_info = self.produce_cust_info()
 
         # Get the active map document and data frame
@@ -54,8 +55,9 @@ class Rivedo():
         rivedo_priority = self.config["new_column_input"]["Rivedo_Priority"]["field_name"]
         middle_digit = self.config["new_column_input"]["Middle_Digit"]["field_name"]
 
+
         # Create a list of where clauses to select rows to delete
-        self.where_clauses = ["tasking_priority" + f" = {rivedo_priority} And {middle_digit} <> 'Low' And {middle_digit} <> 'High' ", 
+        self.delete_clauses = ["tasking_priority" + f" = {rivedo_priority} And {middle_digit} <> 'Low' And {middle_digit} <> 'High' ", 
                               "tasking_priority" + " IN " + "(" + ",".join(str(num) for num in self.config["excluded_priorities"]) + ")", 
                               "ge01 = 0 And wv01 = 0 And wv02 = 0 And wv03 = 0",
                               "sap_customer_identifier" + " IN " + "(" + ",".join("'"+str(num)+"'" for num in self.config["customer_info"]["idi_customers"]) + ")", 
@@ -105,11 +107,11 @@ class Rivedo():
 
         # Get a list of all field names minus the existing ones that will be moved
         fields = arcpy.ListFields(self.temp_name)
-        field_names = [field.name for field in fields if field.type not in ['OID', 'Geometry'] + self.config["new_existing_field_mapping"]]
+        field_names = [field.name for field in fields if field.type not in ['OID', 'Geometry'] + self.config["new_mapping_for_existing_fields"]]
 
         # Determine the new field order
         number_of_fields_to_move = min(len(self.config["new_column_input"]), len(field_names))  # Ensure we don't try to move more fields than exist
-        new_field_order = self.config["new_existing_field_mapping"] + field_names[-number_of_fields_to_move:] + field_names[:-number_of_fields_to_move]
+        new_field_order = self.config["new_mapping_for_existing_fields"] + field_names[-number_of_fields_to_move:] + field_names[:-number_of_fields_to_move]
 
         # Create a FieldMappings object
         field_mappings = arcpy.FieldMappings()
@@ -179,7 +181,6 @@ class Rivedo():
             source_path = os.path.join(self.staging_location, file)
             dest_path = os.path.join(self.output_loc, file)
             shutil.move(source_path, dest_path)
-            arcpy.AddMessage(f"Moved: {file}")
          
     def produce_cust_info(self):
         """
@@ -217,6 +218,29 @@ class Rivedo():
 
         return values
 
+    def get_metrics(self, layer):
+        """
+        Find and store metrics in the metric dictionary
+        """
+
+        for metric in self.config["metrics"]:
+            query = self.config["metrics"][metric][0]
+            if query:
+                arcpy.management.SelectLayerByAttribute(layer, "NEW_SELECTION", query)
+                self.config["metrics"][metric][1] = arcpy.management.GetCount(layer)
+
+    def display_metrics(self):
+        """ 
+        Output metrics info to the messaging 
+        """
+
+        # Display number of unique customers
+        arcpy.AddMessage("Number of Unique Customers: " + str(len(self.active_cust_info)))
+
+        # Display metrics specified from config file
+        for metric in self.config["metrics"]:
+            arcpy.AddMessage(metric + " : " + str(self.config["metrics"][metric][1]))
+
     def select_and_delete_rows(self, layer):
         """ Select and delete rows from the given layer given a list of where clauses
 
@@ -224,7 +248,7 @@ class Rivedo():
         """
 
         # Select rows to delete
-        for clause in self.where_clauses:
+        for clause in self.delete_clauses:
             arcpy.management.SelectLayerByAttribute(layer, "ADD_TO_SELECTION", clause)
 
         # Delete selected rows
@@ -234,7 +258,7 @@ class Rivedo():
         self.row_count = arcpy.management.GetCount(layer)
         arcpy.AddMessage("Records: " + str(self.row_count))
 
-    def log_run(self):
+    def update_log(self):
         """
         Updates a text file with details on the run
         """
@@ -276,10 +300,16 @@ class Rivedo():
         # Move the produced files to the final output location
         self.move_files()
 
+        # Get metrics
+        self.get_metrics(self.get_layer_by_name(self.temp_name, self.map))
+
+        # Display metrics
+        self.display_metrics()
+
         # Remove the temp layer from the map
         self.map.removeLayer(self.get_layer_by_name(self.temp_name, self.map))
 
         # Log the run
-        self.log_run()
+        self.update_log()
 
 
