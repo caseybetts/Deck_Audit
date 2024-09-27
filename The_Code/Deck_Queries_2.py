@@ -22,10 +22,12 @@ class Rivedo():
             :param path: String, path to the folder where the config and output folder is kept
         """
 
-        self.config_path = Path( path + r"\The_Code\Sensitive_Parameters.json")
+        self.config_path = os.path.join(path + "\\The_Code")
+        config_name = "Sensitive_Parameters.json"
+
 
         # Load .json config file
-        with open(self.config_path, 'r', errors="ignore") as input:
+        with open(os.path.join(self.config_path, config_name), 'r', errors="ignore") as input:
             self.config = json.load(input)
 
         # Define the paths to the parameters and the outputs
@@ -82,7 +84,7 @@ class Rivedo():
             field_type = self.config["new_column_input"][new_column]["field_type"]
 
             # Create code block string
-            with open(self.config["new_column_input"][new_column]['column_function'], 'r') as data:
+            with open(os.path.join(self.config_path, self.config["new_column_input"][new_column]['column_function']), 'r') as data:
                 column_function = data.read()
             
             if config_reqs == "active_customer_info":
