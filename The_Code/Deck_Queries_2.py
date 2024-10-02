@@ -7,6 +7,7 @@ import json
 import shutil
 
 from datetime import datetime
+from helper_functions import *
 from math import floor 
 from pathlib import Path
 
@@ -133,8 +134,8 @@ class Rivedo():
         """ 
         Returns the customer name given the customer number and the dict of all customers
         
-        :param cust: Int, customer id
-        :param customer_info: Dict, dictionary of customer ids and names
+        :param cust: Str, customer id
+        :param customer_info: Dict, dictionary of dictionaries of customer ids and names
         """
 
         for item in customer_info:
@@ -192,15 +193,19 @@ class Rivedo():
         :param customer_info: Dict, all customer info from the config file
         """
 
+        # Create a set of unique customer IDs
         with arcpy.da.SearchCursor(self.active_orders_ufp, ["sap_customer_identifier"]) as cursor:
             active_customers = sorted({row[0] for row in cursor})
 
-        cust_dict = dict()
+        customer_dict = dict()
+        
+        # For each type of customer filter the dictionary elements down to only those cooresponding with the active customers list
+        # Then combine to to the existing dictionary
+        for customers in self.config["customer_info"]:
+            active_customer_dict = {id:self.config["customer_info"][customers][id] for id in active_customers if id in self.config["customer_info"][customers]}
+            customer_dict.update(active_customer_dict)
 
-        for id in active_customers:
-            cust_dict[str(id)] = self.customer_name(id, self.config["customer_info"])
-
-        return cust_dict
+        return customer_dict
 
     def get_field_values(self, layer, field):
         """ 
