@@ -16,7 +16,7 @@ class Rivedo():
     """ Object used to produce the Rivedo shapefile """
 
     def __init__(self, active_orders_ufp, hotlist, path, username):
-        """ Load and initiate data and vars 
+        """ Load and initiate data and vars. Runs main program. 
         
             :param active_orders_ufp: Feature Layer, active orders ufp layer
             :param hotlist: Feature Layer, the hotlist layer
@@ -69,11 +69,11 @@ class Rivedo():
         # Call functions
         self.run_workflow()
 
-
     def add_columns_to_feature_class(self, active_customer_info):
         """
         Adds the given columns to the given feature layer
 
+        :param active_customer_info: Dictionary, dictionary with key/value pairs of customer id/customer name
         """
 
         for new_column in self.config["new_column_input"]:
@@ -102,9 +102,6 @@ class Rivedo():
         """
         Creates a field mapping as input for creating a new feature class
 
-        :param input_layer: String, the name of the input feature class or table
-        :param fields_to_move: Integer, the number of fields to move from the end to the beginning
-        :return: String, the name of the new feature class or table with reordered fields
         """
         arcpy.env.overwriteOutput = True
 
@@ -149,6 +146,7 @@ class Rivedo():
         Returns the first layer in the TOC of the given name
 
         :param layer_name: String, the name of the layer to be returned
+        :param map: Map Object, the map containing the layer
         """
 
         # Find the layer
@@ -162,8 +160,6 @@ class Rivedo():
         """ 
         Deletes out the files of the given name in the given folder
         
-        :param file_location: String, path to the target folder
-        :param file_names: String, name of file(s) to be deleted
         """
 
         for file in self.output_name:
@@ -176,8 +172,6 @@ class Rivedo():
         """ 
         Moves all files in a given folder to the given output folder
         
-        :param initial_location: String, path to the 'move from' folder
-        :param final_location: String, path to the 'move to' folder
         """
 
         for file in os.listdir(self.staging_location):
@@ -228,6 +222,8 @@ class Rivedo():
     def get_metrics(self, layer):
         """
         Find and store metrics in the metric dictionary
+
+        :param layer: Feature Layer, layer from which to derive the metrics
         """
 
         for metric in self.config["metrics"]:
