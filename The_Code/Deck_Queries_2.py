@@ -54,13 +54,12 @@ class Rivedo():
         # Create hotlist soli list and where clause string
         hotlist_solis = self.get_field_values(self.hotlist, "soli")
 
-        # Create vars for the rivedo priority and middle digit from the configs 
+        # Create vars for the rivedo priority and high_low from the configs 
         rivedo_priority = self.config["new_column_input"]["Rivedo_Priority"]["field_name"]
-        middle_digit = self.config["new_column_input"]["Middle_Digit"]["field_name"]
-
+        high_low = self.config["new_column_input"]["High_Low"]["field_name"]
 
         # Create a list of where clauses to select rows to delete
-        self.delete_clauses = ["tasking_priority" + f" = {rivedo_priority} And {middle_digit} <> 'Low' And {middle_digit} <> 'High' ", 
+        self.delete_clauses = ["tasking_priority" + f" = {rivedo_priority} And {high_low} <> 'Low' And {high_low} <> 'High' ", 
                               "tasking_priority" + " IN " + "(" + ",".join(str(num) for num in self.config["excluded_priorities"]) + ")", 
                               "ge01 = 0 And wv01 = 0 And wv02 = 0 And wv03 = 0",
                               "sap_customer_identifier" + " IN " + "(" + ",".join("'"+str(num)+"'" for num in self.config["customer_info"]["idi_customers"]) + ")", 
@@ -96,6 +95,7 @@ class Rivedo():
             code_block = code_block + column_function
 
             # Add column to feature class
+            arcpy.AddMessage("Adding Column: " + field_name)
             arcpy.management.CalculateField(self.temp_feature_class, field_name, expression, "PYTHON3", code_block, field_type)
 
     def produce_field_mapping(self):
@@ -111,7 +111,9 @@ class Rivedo():
 
         # Determine the new field order
         number_of_fields_to_move = min(len(self.config["new_column_input"]), len(field_names))  # Ensure we don't try to move more fields than exist
+        arcpy.AddMessage("number of new fields: " + str(number_of_fields_to_move))
         new_field_order = self.config["new_mapping_for_existing_fields"] + field_names[-number_of_fields_to_move:] + field_names[:-number_of_fields_to_move]
+        arcpy.AddMessage("New field order: " + str(new_field_order))
 
         # Create a FieldMappings object
         field_mappings = arcpy.FieldMappings()
@@ -287,6 +289,7 @@ class Rivedo():
 
         # Generate the new field mapping
         new_field_mapping = self.produce_field_mapping()
+        arcpy.AddMessage("new_field_mapping: " + str(new_field_mapping))
 
         # Add the feature calss to the map as a new feature layer
         self.map.addDataFromPath(self.temp_feature_class)
